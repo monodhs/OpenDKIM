@@ -61,6 +61,14 @@ will be "none" in such cases.  Normally unsigned mail from non-strict
 domains does not cause the results header field to be added.
 
 .TP
+.I ATPSDomains (string)
+@ATPS_MANNOTICE@
+
+.TP
+.I ATPSHashAlgorithm (string)
+@ATPS_MANNOTICE@
+
+.TP
 .I AuthservID (string)
 Sets the "authserv-id" to use when generating the Authentication-Results:
 header field after verifying a message.  The default is to use the name of
@@ -186,6 +194,14 @@ signature was either expired or generated in the future.  The default
 is 300.
 
 .TP
+.I ConditionalSignatures (string)
+@CONDITIONAL_MANNOTICE@
+
+.TP
+.I DefaultSender (string)
+@DEFAULT_SENDER_MANNOTICE@
+
+.TP
 .I Diagnostics (Boolean)
 Requests the inclusion of "z=" tags in signatures, which encode the
 original header field set for use by verifiers when diagnosing verification
@@ -285,6 +301,18 @@ body canonicalization, anticipating that an MTA somewhere before delivery
 will do that conversion anyway.  The default is to leave them as-is.
 
 .TP
+.I FlowData (string)
+@RATE_LIMIT_MANNOTICE@
+
+.TP
+.I FlowDataFactor (integer)
+@RATE_LIMIT_MANNOTICE@
+
+.TP
+.I FlowDataTTL (integer)
+@RATE_LIMIT_MANNOTICE@
+
+.TP
 .I IdentityHeader (string)
 This specifies the header field where an identity is stored.
 @IDENTITY_HEADER_MANNOTICE@
@@ -367,64 +395,76 @@ signatures based on the message sender.
 Names the authentication mechanism to use when connecting to an LDAP
 server.  The default is the empty string, meaning "simple" authentication
 should be done.
+@LDAP_MANNOTICE@
 
 .TP 
 .I LDAPAuthName (string)
 Specifies the authenticating name to use when using SASL to authenticate to
 an LDAP server.  Requires SASL support be installed on the local system.
 There is no default.
+@SASL_MANNOTICE@
 
 .TP 
 .I LDAPAuthRealm (string)
 Specifies the authentication realm to use when using SASL to authenticate to
 an LDAP server.  Requires SASL support be installed on the local system.
 There is no default.
+@SASL_MANNOTICE@
 
 .TP 
 .I LDAPAuthUser (string)
 Specifies the authenticating user to use when using SASL to authenticate to an
 LDAP server.  Requires SASL support be installed on the local system.
 There is no default.
+@SASL_MANNOTICE@
 
 .TP 
 .I LDAPBindPassword (string)
 Specifies the password to use when conducting an LDAP "bind" operation.
 There is no default.
+@LDAP_MANNOTICE@
 
 .TP 
 .I LDAPBindUser (string)
 Specifies the user ID to use when conducting an LDAP "bind" operation.
 There is no default.
+@LDAP_MANNOTICE@
 
 .TP
 .I LDAPDisableCache (Boolean)
 Suppresses creation of a local cache in front of LDAP queries.
+@LDAP_MANNOTICE@
 
 .TP
 .I LDAPKeepaliveIdle (integer)
 Sets the number of seconds a connection to an LDAP server needs to remain
 idle before TCP starts sending keepalive probes.  If not specified, the
 LDAP library default is used.
+@LDAP_MANNOTICE@
 
 .TP
 .I LDAPKeepaliveInterval (integer)
 Sets the interval in seconds between TCP keepalive probes.  If not specified,
 the LDAP library default is used.
+@LDAP_MANNOTICE@
 
 .TP
 .I LDAPKeepaliveProbes (integer)
 Sets the maximum number of keepalive probes TCP should send before abandoning
 the connection.  If not specified, the LDAP library default is used.
+@LDAP_MANNOTICE@
 
 .TP
 .I LDAPTimeout (integer)
 Sets the time in seconds after which an LDAP operation should be abandoned.
 The default is 5.
+@LDAP_MANNOTICE@
 
 .TP 
 .I LDAPUseTLS (Boolean)
 Indicates whether or not a TLS connection should be established when
 contacting an LDAP server.  The default is "False".
+@LDAP_MANNOTICE@
 
 .TP
 .I LogResults (boolean)
@@ -447,6 +487,10 @@ in the OPERATIONS section of the
 man page.  This causes a large increase in the amount of log data generated
 for each message, so it should be limited to debugging use and not enabled
 for general operation.
+
+.TP
+.I LuaOnlySigning (boolean)
+@LUA_ONLY_SIGNING_MANNOTICE@
 
 .TP
 .I MacroList (dataset)
@@ -678,6 +722,10 @@ The default is
 .I accept.
 
 .TP
+.I On-ReputationError (string)
+@REPUTATION_MANNOTICE@
+
+.TP
 .I On-Security (string)
 Selects the action to be taken when a message arrives containing properties
 that may be a security concern.  Possible values are the same as those for
@@ -695,7 +743,7 @@ The default is
 .I reject.
 
 .TP
-.I OversignHeaders (dataset)
+.I OverSignHeaders (dataset)
 Specifies a set of header fields that should be included in all signature
 header lists (the "h=" tag) once more than the number of times they were
 actually present in the signed message.  The set is empty by default.  The
@@ -757,6 +805,10 @@ not local.
 @QUERY_CACHE_MANNOTICE@
 
 .TP
+.I RateLimits (string)
+@RATE_LIMIT_MANNOTICE@
+
+.TP
 .I RedirectFailuresTo (address)
 Messages bearing signatures that failed to verify are redirected to the
 specified address.  The original envelope recipient set is recorded in
@@ -816,6 +868,66 @@ Specifies address(es) to include in a Bcc: header field on outgoing reports
 (see
 .I SendReports
 below). If multiple addresses are required, they should be comma separated.
+
+.TP
+.I ReputationCache (string)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationCacheTTL (integer)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationDuplicates (string)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationLimits (string)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationLowTime (string)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationMinimum (integer)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationLimitModifiers (string)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationRatios (string)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationRRDHashDepth (integer)
+@REPRRD_MANNOTICE@
+
+.TP
+.I ReputationRRDRoot (string)
+@REPRRD_MANNOTICE@
+
+.TP
+.I ReputationSpamCheck (string)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationTest (boolean)
+@REPRRD_OR_REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationTimeFactor (integer)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationTimeout (integer)
+@REPUTATION_MANNOTICE@
+
+.TP
+.I ReputationVerbose (boolean)
+@REPRRD_OR_REPUTATION_MANNOTICE@
 
 .TP
 .I RequestReports (boolean)
@@ -1037,6 +1149,7 @@ on the command line.
 If set, the inability to connect and authenticate to an LDAP or SQL server will
 not prevent the filter from starting, and reconnections will be attempted for
 each query.  The default is "False".
+@ODBX_OR_LDAP_MANNOTICE@
 
 .TP
 .I SoftwareHeader (Boolean)
@@ -1076,6 +1189,7 @@ work has been completed but before any final message handling is done.  The
 main purpose of this script is to give the user an opportunity to examine the
 message or its signatures and make arbitrary additional statistical
 observations that should be recorded by the statistics module.
+@STATSEXT_MANNOTICE@
 
 .TP
 .I StatisticsPrefix (string)
@@ -1086,6 +1200,7 @@ data before hashing for more complete anonymization.  This means two records
 from different sources referencing the same source will still produce
 different hashes, meaning such correlation is now only possible within the
 data from a single repoter.
+@STATS_MANNOTICE@
 
 .TP
 .I StrictHeaders (Boolean)
