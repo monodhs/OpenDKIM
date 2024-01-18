@@ -311,24 +311,25 @@ AC_CHECK_MEMBER([struct sockaddr_in6.sin6_len],
 LIBOPENDKIM_FEATURE_STRING="libopendkim $PACKAGE_VERSION:"
 
 AC_DEFUN([TR_UP], [m4_translit([AS_TR_SH([$1])], [a-z], [A-Z])])
+AC_DEFUN([TR_US], [m4_translit([AS_TR_SH([$1])], [-+.], [___])])
 
 AC_DEFUN([FEATURE],
          [notincluded="(Not enabled for this installation.)"
           AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, $2),
-                        AS_IF([test "x$enable_]$1[" = "xyes"],
+                        AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
                               [
-				AC_SUBST(TR_UP($1)[_MANNOTICE], "")
-				AC_DEFINE(TR_UP($1), 1, [enable $1 feature])
+				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], "")
+				AC_DEFINE(TR_UP(TR_US($1)), 1, [enable $1 feature])
 			      ],
 			      [
-				AC_SUBST(TR_UP($1)[_MANNOTICE], $notincluded)
+				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded)
 			      ]),
-                        AC_SUBST(TR_UP($1)[_MANNOTICE], $notincluded))
+                        AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded))
          ])
 
 AC_DEFUN([LIB_FEATURE],
          [FEATURE($1, $2)
-          AS_IF([test "x$enable_]$1[" = "xyes"],
+          AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
 	        [
 			LIBOPENDKIM_FEATURE_STRING="$LIBOPENDKIM_FEATURE_STRING $1"
 		])
@@ -337,24 +338,24 @@ AC_DEFUN([LIB_FEATURE],
 AC_DEFUN([FFR_FEATURE],
          [experimentalnotincluded="(Experimental feature not enabled for this installation.)"
           AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, $2),
-                        AS_IF([test "x$enable_]$1[" = "xyes"],
+                        AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
                               [
-				AC_DEFINE([_FFR_]TR_UP($1), 1,
+				AC_DEFINE([_FFR_]TR_UP(TR_US($1)), 1,
 				          [enable $1 feature])
-				AC_SUBST(TR_UP($1)[_MANNOTICE],
+				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE],
 				         "(Note: Feature is experimental.)")
                               ],
                               [
-				AC_SUBST(TR_UP($1)[_MANNOTICE],
+				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE],
 				         $experimentalnotincluded)
                               ]),
-                        AC_SUBST(TR_UP($1)[_MANNOTICE],
+                        AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE],
                                  $experimentalnotincluded))
          ])
 
 AC_DEFUN([LIB_FFR_FEATURE],
          [FFR_FEATURE($1, $2)
-          AS_IF([test "x$enable_]$1[" = "xyes"],
+          AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
                 [
 			LIBOPENDKIM_FEATURE_STRING="$LIBOPENDKIM_FEATURE_STRING $1"
 		])
