@@ -247,7 +247,9 @@ struct dkimf_config
 	_Bool		conf_enablecores;	/* enable coredumps */
 	_Bool		conf_noheaderb;		/* suppress "header.b" */
 	_Bool		conf_singleauthres;	/* single Auth-Results */
+#if defined(REQUIRE_SAFE_KEYS)
 	_Bool		conf_safekeys;		/* check key permissions */
+#endif /* REQUIRE_SAFE_KEYS */
 #ifdef _FFR_RESIGN
 	_Bool		conf_resignall;		/* resign unverified mail */
 #endif /* _FFR_RESIGN */
@@ -768,7 +770,9 @@ char reportcmd[BUFRSZ + 1];			/* reporting command */
 char reportaddr[MAXADDRESS + 1];		/* reporting address */
 char myhostname[DKIM_MAXHOSTNAMELEN + 1];	/* hostname */
 pthread_mutex_t conf_lock;			/* config lock */
+#if defined(REQUIRE_SAFE_KEYS)
 pthread_mutex_t pwdb_lock;			/* passwd/group lock */
+#endif /* REQUIRE_SAFE_KEYS */
 
 /* Other useful definitions */
 #define CRLF			"\r\n"		/* CRLF */
@@ -4436,6 +4440,8 @@ dkimf_reptoken(u_char *out, size_t outlen, u_char *in, u_char *sub)
 	return ret;
 }
 
+#if defined(REQUIRE_SAFE_KEYS)
+
 /*
 **  DKIMF_CHECKFSNODE -- check a filesystem node for safety
 **
@@ -4829,6 +4835,8 @@ dkimf_securefile(const char *path, ino_t *ino, uid_t myuid, char *err,
 #endif /* HAVE_REALPATH */
 }
 
+#endif /* REQUIRE_SAFE_KEYS */
+
 /*
 **  DKIMF_LOADKEY -- resolve a key
 **
@@ -4848,10 +4856,15 @@ dkimf_securefile(const char *path, ino_t *ino, uid_t myuid, char *err,
 */
 
 static _Bool
-dkimf_loadkey(char *buf, size_t *buflen, _Bool *insecure, char *error,
-              size_t errlen)
+dkimf_loadkey(char *buf, size_t *buflen,
+#if defined(REQUIRE_SAFE_KEYS)
+              _Bool *insecure,
+#endif /* REQUIRE_SAFE_KEYS */
+              char *error, size_t errlen)
 {
+#if defined(REQUIRE_SAFE_KEYS)
 	ino_t ino;
+#endif /* REQUIRE_SAFE_KEYS */
 
 	assert(buf != NULL);
 	assert(buflen != NULL);
@@ -4892,11 +4905,13 @@ dkimf_loadkey(char *buf, size_t *buflen, _Bool *insecure, char *error,
 			return FALSE;
 		}
 
+#if defined(REQUIRE_SAFE_KEYS)
 		if (!dkimf_securefile(buf, &ino, (uid_t) -1, error, errlen) ||
 		    (ino != (ino_t) -1 && ino != s.st_ino))
 			*insecure = TRUE;
 		else
 			*insecure = FALSE;
+#endif /* REQUIRE_SAFE_KEYS */
 
 		*buflen = MIN(s.st_size, *buflen);
 		rlen = read(fd, buf, *buflen);
@@ -4956,7 +4971,9 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, char *keyname,
 
 	if (keytable != NULL)
 	{
+#if defined(REQUIRE_SAFE_KEYS)
 		_Bool insecure;
+#endif /* REQUIRE_SAFE_KEYS */
 
 		assert(keyname != NULL);
 
@@ -5050,9 +5067,14 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, char *keyname,
 		}
 
 		keydatasz = sizeof keydata - 1;
+#if defined(REQUIRE_SAFE_KEYS)
 		insecure = FALSE;
+#endif /* REQUIRE_SAFE_KEYS */
 		if (!dkimf_loadkey(dbd[2].dbdata_buffer, &keydatasz,
-		                   &insecure, err, sizeof err))
+#if defined(REQUIRE_SAFE_KEYS)
+		                   &insecure,
+#endif /* REQUIRE_SAFE_KEYS */
+		                   err, sizeof err))
 		{
 			if (dolog)
 			{
@@ -5063,6 +5085,7 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, char *keyname,
 			return 2;
 		}
 
+#if defined(REQUIRE_SAFE_KEYS)
 		if (insecure)
 		{
 			if (dolog)
@@ -5079,6 +5102,7 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, char *keyname,
  			if (curconf->conf_safekeys)
 				return 2;
 		}
+#endif /* REQUIRE_SAFE_KEYS */
 	}
 
 	new = malloc(sizeof *new);
@@ -5869,7 +5893,9 @@ dkimf_config_new(void)
 	new->conf_repfactor = DKIMF_REP_DEFFACTOR;
 	new->conf_repcachettl = DKIMF_REP_DEFCACHETTL;
 #endif /* _FFR_REPUTATION */
+#if defined(REQUIRE_SAFE_KEYS)
 	new->conf_safekeys = TRUE;
+#endif /* REQUIRE_SAFE_KEYS */
 #ifdef _FFR_STATS
 	new->conf_reporthost = myhostname;
 #endif /* _FFR_STATS */
@@ -6289,9 +6315,11 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		                  &conf->conf_reqreports,
 		                  sizeof conf->conf_reqreports);
 
+#if defined(REQUIRE_SAFE_KEYS)
 		(void) config_get(data, "RequireSafeKeys",
 		                  &conf->conf_safekeys,
 		                  sizeof conf->conf_safekeys);
+#endif /* REQUIRE_SAFE_KEYS */
 
 		(void) config_get(data, "TestDNSData",
 		                  &conf->conf_testdnsdata,
@@ -8109,8 +8137,10 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		int status;
 		int fd;
 		ssize_t rlen;
+#if defined(REQUIRE_SAFE_KEYS)
 		ino_t ino;
 		uid_t asuser = (uid_t) -1;
+#endif /* REQUIRE_SAFE_KEYS */
 		u_char *s33krit;
 		struct stat s;
 
@@ -8164,6 +8194,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 			return -1;
 		}
 
+#if defined(REQUIRE_SAFE_KEYS)
 		if (become != NULL)
 		{
 			struct passwd *pw;
@@ -8205,6 +8236,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 			if (conf->conf_safekeys)
 				return -1;
 		}
+#endif /* REQUIRE_SAFE_KEYS */
 
 		s33krit = malloc(s.st_size + 1);
 		if (s33krit == NULL)
@@ -17015,7 +17047,9 @@ main(int argc, char **argv)
 	}
 
 	pthread_mutex_init(&conf_lock, NULL);
+#if defined(REQUIRE_SAFE_KEYS)
 	pthread_mutex_init(&pwdb_lock, NULL);
+#endif /* REQUIRE_SAFE_KEYS */
 
 	/* perform test mode */
 	if (testfile != NULL)

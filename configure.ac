@@ -379,6 +379,10 @@ AC_DEFUN([LIB_FFR_FEATURE],
 #
 # opendkim
 #
+STANDARD_FEATURE([require-safe-keys],
+	[do not examine key file permissions at all],
+	[RequireSafeKeys])
+
 FEATURE([popauth], [enable POP-before-SMTP support])
 
 FFR_FEATURE([atps], [experimental Authorized Third Party Signers checks])

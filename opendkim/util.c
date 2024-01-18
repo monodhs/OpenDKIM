@@ -76,6 +76,10 @@ static pthread_mutex_t pop_lock;
 
 static const char * dsflist[] =
 {
+#if !defined(REQUIRE_SAFE_KEYS)
+	"REQUIRE_SAFE_KEYS",
+#endif /* !REQUIRE_SAFE_KEYS */
+
 	NULL
 };
 

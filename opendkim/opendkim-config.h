@@ -176,7 +176,9 @@ struct configdef dkimf_config[] =
 #endif /* _FFR_REPUTATION */
 	{ "RequestReports",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "RequiredHeaders",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(REQUIRE_SAFE_KEYS)
 	{ "RequireSafeKeys",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* REQUIRE_SAFE_KEYS */
 #ifdef _FFR_RESIGN
 	{ "ResignAll",			CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "ResignMailTo",		CONFIG_TYPE_STRING,	FALSE },
