@@ -313,6 +313,21 @@ LIBOPENDKIM_FEATURE_STRING="libopendkim $PACKAGE_VERSION:"
 AC_DEFUN([TR_UP], [m4_translit([AS_TR_SH([$1])], [a-z], [A-Z])])
 AC_DEFUN([TR_US], [m4_translit([AS_TR_SH([$1])], [-+.], [___])])
 
+AC_DEFUN([STANDARD_FEATURE],
+         [notincluded="(Not enabled for this installation.)"
+          AC_ARG_ENABLE($1, AS_HELP_STRING(--disable-$1, $2),
+                        [enable_]TR_US($1)[=$enableval],
+                        [enable_]TR_US($1)[=yes])
+          AS_IF([test x"$enable_]TR_US($1)[" != x"no"],
+                [
+                 AC_DEFINE(TR_UP(TR_US($1)), 1, [do not disable $3])
+                 AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], "")
+                ],
+                [
+                 AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded)
+                ])
+         ])
+
 AC_DEFUN([FEATURE],
          [notincluded="(Not enabled for this installation.)"
           AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, $2),

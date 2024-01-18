@@ -74,6 +74,11 @@
 static pthread_mutex_t pop_lock;
 #endif /* POPAUTH */
 
+static const char * dsflist[] =
+{
+	NULL
+};
+
 static char *optlist[] =
 {
 #if DEBUG
@@ -259,7 +264,18 @@ dkimf_optlist(FILE *where)
 
 	assert(where != NULL);
 
-	for (c = 0; optlist[c] != NULL; c++)
+	for (c = 0; dsflist[c] != NULL; c++)
+	{
+		if (first)
+		{
+			fprintf(where, "\tDisabled standard features:\n");
+			first = FALSE;
+		}
+
+		fprintf(where, "\t\t%s\n", dsflist[c]);
+	}
+
+	for (first = TRUE, c = 0; optlist[c] != NULL; c++)
 	{
 		if (first)
 		{
