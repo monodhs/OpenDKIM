@@ -306,3 +306,7 @@ if USE_ODBX
 man_MANS += opendkim-spam.1
 endif
 endif
+
+SUFFIXES = .m4
+.m4:
+	$(M4) -D MANPAGE_MACROS="${top_srcdir}/manpages/macros.m4" $< > $@
