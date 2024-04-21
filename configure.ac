@@ -428,12 +428,21 @@ then
 fi
 AM_CONDITIONAL([REPUTE], [test x"$enable_reputation" = x"yes"])
 
+if test x"$enable_reprrd" = x"yes" -o x"$enable_reputation" = x"yes"
+then
+	AC_SUBST([REPRRD_OR_REPUTATION_MANNOTICE], "")
+else
+	AC_SUBST([REPRRD_OR_REPUTATION_MANNOTICE], "(Experimental feature not enabled for this installation.)")
+fi
+
 FFR_FEATURE([resign],
             [support for one-step re-signing])
 
 FFR_FEATURE([sender_macro], [macro to determine sender])
 
 FFR_FEATURE([socketdb], [arbitrary socket data sets])
+
+FFR_FEATURE([lua_only_signing], [sign using LUA only])
 
 FFR_FEATURE([stats], [stats recording and reporting])
 AM_CONDITIONAL([STATS], [test x"$enable_stats" = x"yes"])
@@ -1888,10 +1897,20 @@ main()
 				AC_MSG_ERROR([OpenLDAP version 2.1.3 or later required]))
 	CPPFLAGS="$saved_CPPFLAGS"
 	AC_DEFINE([USE_LDAP], 1, [OpenLDAP support for datasets enabled])
+	AC_SUBST([LDAP_MANNOTICE], "")
+else
+	AC_SUBST([LDAP_MANNOTICE], "(Not enabled for this installation.)")
 fi
 AM_CONDITIONAL(USE_LDAP, test x"$ldap_found" = x"yes")
 AC_SUBST(OPENLDAP_CPPFLAGS)
 AC_SUBST(OPENLDAP_LIBS)
+
+if test x"$odbx_found" = x"yes" -o x"$ldap_found" = x"yes"
+then
+	AC_SUBST([ODBX_OR_LDAP_MANNOTICE], "")
+else
+	AC_SUBST([ODBX_OR_LDAP_MANNOTICE], "(Not enabled for this installation.)")
+fi
 
 #
 # SASL
@@ -1957,6 +1976,9 @@ fi
 if test x"$sasl_found" = x"yes"
 then
 	AC_DEFINE([USE_SASL], 1, [SASL support available])
+	AC_SUBST([SASL_MANNOTICE], "")
+else
+	AC_SUBST([SASL_MANNOTICE], "(Not enabled for this installation.)")
 fi
 AM_CONDITIONAL(USE_SASL, test x"$sasl_found" = x"yes")
 AC_SUBST(SASL_CPPFLAGS)
