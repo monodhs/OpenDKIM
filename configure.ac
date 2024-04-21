@@ -67,6 +67,22 @@ LT_INIT
 PKG_PROG_PKG_CONFIG
 
 #
+# By testing for the C preprocessor before introducing M4,
+# CPP precedes the latter in configure's list of influential
+# environment variables.
+#
+AC_PROG_CPP
+AC_ARG_VAR([M4], [M4 processor; must accept the -D option,
+send its output to the standard output, and accept a single
+filename argument of arbitrary form for its input])
+
+AC_PATH_PROG([M4], [m4], [.])
+AS_IF([test x"$M4" = x"."],
+	[AC_MSG_ERROR([No M4 processor found.
+Please use the M4 environment variable to specify
+an M4 processor explicitly.])])
+
+#
 # Check for how to compile threaded stuff
 #
 AX_PTHREAD
@@ -313,6 +329,15 @@ LIBOPENDKIM_FEATURE_STRING="libopendkim $PACKAGE_VERSION:"
 AC_DEFUN([TR_UP], [m4_translit([AS_TR_SH([$1])], [a-z], [A-Z])])
 AC_DEFUN([TR_US], [m4_translit([AS_TR_SH([$1])], [-+.], [___])])
 
+AC_DEFUN([MAN_ENABLED],
+         [AC_SUBST($1[_MANIF],    "manpage_divert(0)manpage_dnl")
+          AC_SUBST($1[_MANELSE],  "manpage_divert(-1)manpage_dnl")
+          AC_SUBST($1[_MANENDIF], "manpage_divert(0)manpage_dnl")])
+AC_DEFUN([MAN_DISABLED],
+         [AC_SUBST($1[_MANIF],    "manpage_divert(-1)manpage_dnl")
+          AC_SUBST($1[_MANELSE],  "manpage_divert(0)manpage_dnl")
+          AC_SUBST($1[_MANENDIF], "manpage_divert(0)manpage_dnl")])
+
 AC_DEFUN([STANDARD_FEATURE],
          [notincluded="(Not enabled for this installation.)"
           AC_ARG_ENABLE($1, AS_HELP_STRING(--disable-$1, $2),
@@ -320,10 +345,12 @@ AC_DEFUN([STANDARD_FEATURE],
                         [enable_]TR_US($1)[=yes])
           AS_IF([test x"$enable_]TR_US($1)[" != x"no"],
                 [
-                 AC_DEFINE(TR_UP(TR_US($1)), 1, [do not disable $3])
+                 MAN_ENABLED(TR_UP(TR_US($1)))
                  AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], "")
+                 AC_DEFINE(TR_UP(TR_US($1)), 1, [do not disable $3])
                 ],
                 [
+                 MAN_DISABLED(TR_UP(TR_US($1)))
                  AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded)
                 ])
          ])
@@ -333,12 +360,15 @@ AC_DEFUN([FEATURE],
           AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, $2),
                         AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
                               [
+				MAN_ENABLED(TR_UP(TR_US($1)))
 				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], "")
 				AC_DEFINE(TR_UP(TR_US($1)), 1, [enable $1 feature])
 			      ],
 			      [
+				MAN_DISABLED(TR_UP(TR_US($1)))
 				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded)
 			      ]),
+                        MAN_DISABLED(TR_UP(TR_US($1)))
                         AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded))
          ])
 
@@ -355,15 +385,18 @@ AC_DEFUN([FFR_FEATURE],
           AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, $2),
                         AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
                               [
+				MAN_ENABLED(TR_UP(TR_US($1)))
 				AC_DEFINE([_FFR_]TR_UP(TR_US($1)), 1,
 				          [enable $1 feature])
 				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE],
 				         "(Note: Feature is experimental.)")
                               ],
                               [
+				MAN_DISABLED(TR_UP(TR_US($1)))
 				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE],
 				         $experimentalnotincluded)
                               ]),
+                        MAN_DISABLED(TR_UP(TR_US($1)))
                         AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE],
                                  $experimentalnotincluded))
          ])
