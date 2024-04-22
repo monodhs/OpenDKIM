@@ -422,6 +422,9 @@ STANDARD_FEATURE([production-tests],
 	[disable production tests],
 	[production tests])
 AM_CONDITIONAL([PRODUCTION_TESTS], [test x"$enable_production_tests" = x"yes"])
+STANDARD_FEATURE([single-signing],
+	[disable features using the single-signing parameters for signing],
+	[single-signing features])
 
 FEATURE([popauth], [enable POP-before-SMTP support])
 
@@ -2755,7 +2758,7 @@ AC_CONFIG_FILES([	Makefile
 		miltertest/Makefile
 		opendkim/Makefile opendkim/opendkim.8.m4 opendkim/opendkim-genkey
 			opendkim/opendkim-genkey.8 opendkim/opendkim-genzone.8
-			opendkim/opendkim-lua.3 
+			opendkim/opendkim-lua.3.m4
 			opendkim/opendkim-testkey.8 opendkim/opendkim-stats.8
 			opendkim/opendkim-testmsg.8 opendkim/opendkim.conf.5.m4
 			opendkim/opendkim.conf.simple

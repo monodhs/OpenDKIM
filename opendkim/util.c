@@ -88,6 +88,10 @@ static const char * dsflist[] =
 	"PRODUCTION_TESTS",
 #endif /* !PRODUCTION_TESTS */
 
+#if !defined(SINGLE_SIGNING)
+	"SINGLE_SIGNING",
+#endif /* !SINGLE_SIGNING */
+
 	NULL
 };
 

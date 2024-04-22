@@ -139,18 +139,27 @@
 #endif /* _FFR_REPUTATION */
 
 /* macros */
-#define COMMON_OPTS		"b:c:d:De:k:lL:no:p:rs:S:T:VWx:X?"
+#define COMMON_OPTS		"b:c:e:lL:no:p:rS:T:VWx:X?"
 #define STANDALONE_OPTS		"AfP:u:"
 #define PRODUCTION_TESTS_OPTS	"F:Qt:v"
-#if    defined(STANDALONE) &&  defined(PRODUCTION_TESTS)
-#define CMDLINEOPTS	STANDALONE_OPTS PRODUCTION_TESTS_OPTS COMMON_OPTS
-#elif !defined(STANDALONE) &&  defined(PRODUCTION_TESTS)
-#define CMDLINEOPTS	                PRODUCTION_TESTS_OPTS COMMON_OPTS
-#elif  defined(STANDALONE) && !defined(PRODUCTION_TESTS)
-#define CMDLINEOPTS	STANDALONE_OPTS                       COMMON_OPTS
-#else /* STANDALONE, PRODUCTION_TESTS */
-#define CMDLINEOPTS	                                      COMMON_OPTS
-#endif /* !STANDALONE && !PRODUCTION_TESTS */
+#define SINGLE_SIGNING_OPTS	"d:Dk:s:"
+#if    defined(STANDALONE) &&  defined(PRODUCTION_TESTS) &&  defined(SINGLE_SIGNING)
+#define CMDLINEOPTS	STANDALONE_OPTS PRODUCTION_TESTS_OPTS SINGLE_SIGNING_OPTS COMMON_OPTS
+#elif !defined(STANDALONE) &&  defined(PRODUCTION_TESTS) &&  defined(SINGLE_SIGNING)
+#define CMDLINEOPTS	                PRODUCTION_TESTS_OPTS SINGLE_SIGNING_OPTS COMMON_OPTS
+#elif  defined(STANDALONE) && !defined(PRODUCTION_TESTS) &&  defined(SINGLE_SIGNING)
+#define CMDLINEOPTS	STANDALONE_OPTS                       SINGLE_SIGNING_OPTS COMMON_OPTS
+#elif !defined(STANDALONE) && !defined(PRODUCTION_TESTS) &&  defined(SINGLE_SIGNING)
+#define CMDLINEOPTS	                                      SINGLE_SIGNING_OPTS COMMON_OPTS
+#elif  defined(STANDALONE) &&  defined(PRODUCTION_TESTS) && !defined(SINGLE_SIGNING)
+#define CMDLINEOPTS	STANDALONE_OPTS PRODUCTION_TESTS_OPTS                     COMMON_OPTS
+#elif !defined(STANDALONE) &&  defined(PRODUCTION_TESTS) && !defined(SINGLE_SIGNING)
+#define CMDLINEOPTS	                PRODUCTION_TESTS_OPTS                     COMMON_OPTS
+#elif  defined(STANDALONE) && !defined(PRODUCTION_TESTS) && !defined(SINGLE_SIGNING)
+#define CMDLINEOPTS	STANDALONE_OPTS                                           COMMON_OPTS
+#else /* STANDALONE, PRODUCTION_TESTS, SINGLE_SIGNING */
+#define CMDLINEOPTS	                                                          COMMON_OPTS
+#endif /* !STANDALONE && !PRODUCTION_TESTS && !SINGLE_SIGNING */
 
 #ifndef MIN
 # define MIN(x,y)	((x) < (y) ? (x) : (y))
@@ -244,7 +253,9 @@ struct dkimf_config
 	_Bool		conf_sendreports;	/* signature failure reports */
 	_Bool		conf_reqhdrs;		/* required header checks */
 	_Bool		conf_authservidwithjobid; /* use jobids in A-R headers */
+#if defined(SINGLE_SIGNING)
 	_Bool		conf_subdomains;	/* sign subdomains */
+#endif /* SINGLE_SIGNING */
 	_Bool		conf_remsigs;		/* remove current signatures? */
 	_Bool		conf_remarall;		/* remove all matching ARs? */
 	_Bool		conf_keepar;		/* keep our ARs? */
@@ -300,7 +311,9 @@ struct dkimf_config
 	int		conf_clockdrift;	/* tolerable clock drift */
 	int		conf_sigmintype;	/* signature minimum type */
 	size_t		conf_sigmin;		/* signature minimum */
+#if defined(SINGLE_SIGNING)
 	size_t		conf_keylen;		/* size of secret key */
+#endif /* SINGLE_SIGNING */
 #ifdef USE_LUA
 	size_t		conf_screenfuncsz;	/* screening function size */
 	size_t		conf_setupfuncsz;	/* setup function size */
@@ -319,7 +332,9 @@ struct dkimf_config
 	char *		conf_smtpuri;		/* outgoing mail URI */
 #endif /* HAVE_CURL_EASY_STRERROR */
 	char *		conf_authservid;	/* authserv-id */
+#if defined(SINGLE_SIGNING)
 	char *		conf_keyfile;		/* key file for single key */
+#endif /* SINGLE_SIGNING */
 	char *		conf_keytable;		/* key table */
 	char *		conf_signtable;		/* signing table */
 	char *		conf_peerfile;		/* peer file */
@@ -328,14 +343,18 @@ struct dkimf_config
 	char *		conf_exemptfile;	/* exempt domains file */
 	char *		conf_tmpdir;		/* temp directory */
 	char *		conf_omitlist;		/* omit header list */
+#if defined(SINGLE_SIGNING)
 	char *		conf_domlist;		/* signing domain list */
+#endif /* SINGLE_SIGNING */
 	char *		conf_signalgstr;	/* signature algorithm string */
 	char *		conf_modestr;		/* mode string */
 	char *		conf_canonstr;		/* canonicalization(s) string */
 	char *		conf_siglimit;		/* signing limits */
 	char *		conf_chroot;		/* chroot(2) directory */
 	char *		conf_selectcanonhdr;	/* canon select header name */
+#if defined(SINGLE_SIGNING)
 	u_char *	conf_selector;		/* key selector */
+#endif /* SINGLE_SIGNING */
 #ifdef _FFR_CONDITIONAL
 	char *		conf_conditional;	/* conditional signing */
 #endif /* _FFR_CONDITIONAL */
@@ -396,7 +415,9 @@ struct dkimf_config
 	struct replace * conf_replist;		/* replacement list */
 	DKIMF_DB	conf_rephdrsdb;		/* replacement headers (DB) */
 #endif /* _FFR_REPLACE_RULES */
+#if defined(SINGLE_SIGNING)
 	dkim_sigkey_t	conf_seckey;		/* secret key data */
+#endif /* SINGLE_SIGNING */
 	char *		conf_nslist;		/* replacement NS list */
 	char *		conf_trustanchorpath;	/* trust anchor file */
 	char *		conf_resolverconfig;	/* resolver config file */
@@ -410,7 +431,9 @@ struct dkimf_config
 	DKIMF_DB	conf_testdnsdb;		/* test TXT records */
 #endif /* PRODUCTION_TESTS */
 	DKIMF_DB	conf_bldb;		/* l= recipients (DB) */
+#if defined(SINGLE_SIGNING)
 	DKIMF_DB	conf_domainsdb;		/* domains to sign (DB) */
+#endif /* SINGLE_SIGNING */
 	DKIMF_DB	conf_omithdrdb;		/* headers to omit (DB) */
 	char **		conf_omithdrs;		/* headers to omit (array) */
 	DKIMF_DB	conf_signhdrsdb;	/* headers to sign (DB) */
@@ -1262,8 +1285,12 @@ dkimf_xs_signfor(lua_State *l)
 	msg = cc->cctx_msg;
 	conf = cc->cctx_config;
 
+#if defined(SINGLE_SIGNING)
 	if (conf->conf_signtabledb == NULL ||
 	    conf->conf_keytabledb == NULL)
+#else /* SINGLE_SIGNING */
+	if (conf->conf_signtabledb == NULL)
+#endif /* !SINGLE_SIGNING */
 	{
 		lua_pushnil(l);
 		return 1;
@@ -2009,19 +2036,31 @@ dkimf_xs_requestsig(lua_State *l)
 
 	top = lua_gettop(l);
 
+#if defined(SINGLE_SIGNING)
 	if (top == 0 && top > 4)
+#else /* SINGLE_SIGNING */
+	if (top < 2 && top > 4)
+#endif /* !SINGLE_SIGNING */
 	{
 		lua_pushstring(l, "odkim.sign(): incorrect argument count");
 		lua_error(l);
 	}
 	else if (!lua_islightuserdata(l, 1) ||
+#if defined(SINGLE_SIGNING)
 	         (top > 1 && !lua_isstring(l, 2)) ||
+#else /* SINGLE_SIGNING */
+	         !lua_isstring(l, 2) ||
+#endif /* !SINGLE_SIGNING */
 	         (top > 2 && !lua_isstring(l, 3) && !lua_isnumber(l, 3)) ||
 	         (top > 3 && !lua_isstring(l, 4) && !lua_isnumber(l, 4)))
 	{
 		lua_pushstring(l, "odkim.sign(): incorrect argument type");
 		lua_error(l);
 	}
+
+#if !defined(SINGLE_SIGNING)
+	keyname = lua_tostring(l, 2);
+#endif /* !SINGLE_SIGNING */
 
 	ctx = (SMFICTX *) lua_touserdata(l, 1);
 	if (ctx != NULL)
@@ -2032,12 +2071,20 @@ dkimf_xs_requestsig(lua_State *l)
 		dfc = cc->cctx_msg;
 		conf = cc->cctx_config;
 
+#if defined(SINGLE_SIGNING)
 		for (c = 2; c <= top; c++)
+#else /* SINGLE_SIGNING */
+		for (c = 3; c <= top; c++)
+#endif /* !SINGLE_SIGNING */
 		{
+#if defined(SINGLE_SIGNING)
 			if (c == 2)
 			{
 				keyname = lua_tostring(l, 2);
 			}
+#else /* SINGLE_SIGNING */
+			if (FALSE);
+#endif /* !SINGLE_SIGNING */
 			else if (lua_type(l, c) == LUA_TNUMBER)
 			{
 				if (signlen != (ssize_t) -1)
@@ -2073,6 +2120,7 @@ dkimf_xs_requestsig(lua_State *l)
 		return 1;
 	}
 
+#if defined(SINGLE_SIGNING)
 	if (conf->conf_keytabledb == NULL && keyname != NULL)
 	{
 		lua_pushstring(l, "odkim.sign(): request requires KeyTable");
@@ -2081,6 +2129,7 @@ dkimf_xs_requestsig(lua_State *l)
 
 	/* try to get the key */
 	if (keyname != NULL)
+#endif /* SINGLE_SIGNING */
 	{
 		switch (dkimf_add_signrequest(dfc, conf->conf_keytabledb,
 		                              (char *) keyname,
@@ -2122,6 +2171,7 @@ dkimf_xs_requestsig(lua_State *l)
 			return 1;
 		}
 	}
+#if defined(SINGLE_SIGNING)
 	else if (dkimf_add_signrequest(dfc, NULL, NULL, (char *) ident,
 	                               (ssize_t) -1) != 0)
 	{
@@ -2132,6 +2182,7 @@ dkimf_xs_requestsig(lua_State *l)
 
 		return 1;
 	}
+#endif /* SINGLE_SIGNING */
 
 	dfc->mctx_signalg = conf->conf_signalg;
 
@@ -2668,12 +2719,14 @@ dkimf_xs_dbhandle(lua_State *l)
 
 	switch (code)
 	{
+#if defined(SINGLE_SIGNING)
 	  case DB_DOMAINS:
 		if (conf->conf_domainsdb == NULL)
 			lua_pushnil(l);
 		else
 			lua_pushlightuserdata(l, conf->conf_domainsdb);
 		break;
+#endif /* SINGLE_SIGNING */
 
 	  case DB_THIRDPARTY:
 		if (conf->conf_thirdpartydb == NULL)
@@ -5005,7 +5058,12 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, char *keyname,
 	char err[BUFRSZ + 1];
 
 	assert(dfc != NULL);
+#if !defined(SINGLE_SIGNING)
+	assert(keytable != NULL);
+	assert(keyname != NULL);
+#endif /* !SINGLE_SIGNING */
 
+#if defined(SINGLE_SIGNING)
 	/*
 	**  Error out if we want the default key but the key or selector were
 	**  not provided.
@@ -5019,12 +5077,15 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, char *keyname,
 	}
 
 	if (keytable != NULL)
+#endif /* SINGLE_SIGNING */
 	{
 #if defined(REQUIRE_SAFE_KEYS)
 		_Bool insecure;
 #endif /* REQUIRE_SAFE_KEYS */
 
+#if defined(SINGLE_SIGNING)
 		assert(keyname != NULL);
+#endif /* SINGLE_SIGNING */
 
 		memset(domain, '\0', sizeof domain);
 		memset(selector, '\0', sizeof selector);
@@ -5160,28 +5221,45 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, char *keyname,
 
 	new->srq_next = NULL;
 	new->srq_dkim = NULL;
+#if defined(SINGLE_SIGNING)
 	new->srq_domain = NULL;
 	new->srq_selector = NULL;
 	new->srq_keydata = NULL;
+#endif /* SINGLE_SIGNING */
 	new->srq_signlen = signlen;
 	if (signer != NULL && signer[0] != '\0')
 		new->srq_signer = (u_char *) strdup(signer);
 	else
 		new->srq_signer = NULL;
 
+#if defined(SINGLE_SIGNING)
 	if (keytable != NULL)
+#endif /* SINGLE_SIGNING */
 	{
 		if (domain[0] == '%' && domain[1] == '\0')
 			new->srq_domain = (u_char *) strdup((char *) dfc->mctx_domain);
 		else
 			new->srq_domain = (u_char *) strdup((char *) domain);
+#if !defined(SINGLE_SIGNING)
+		if (new->srq_domain == NULL)
+			goto relsig;
+#endif /* !SINGLE_SIGNING */
 
 		new->srq_selector = (u_char *) strdup((char *) selector);
+#if !defined(SINGLE_SIGNING)
+		if (new->srq_selector == NULL)
+			goto reldom;
+#endif /* !SINGLE_SIGNING */
+
 		new->srq_keydata = (void *) malloc(keydatasz + 1);
 		if (new->srq_keydata == NULL)
 		{
+#if defined(SINGLE_SIGNING)
 			free(new);
 			return -1;
+#else /* SINGLE_SIGNING */
+			goto relsel;
+#endif /* !SINGLE_SIGNING */
 		}
 		memset(new->srq_keydata, '\0', keydatasz + 1);
 		memcpy(new->srq_keydata, dbd[2].dbdata_buffer, keydatasz);
@@ -5196,6 +5274,19 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, char *keyname,
 		dfc->mctx_srhead = new;
 
 	return 0;
+
+#if !defined(SINGLE_SIGNING)
+relsel:
+	free(new->srq_selector);
+reldom:
+	free(new->srq_domain);
+relsig:
+	if (new->srq_signer != NULL)
+		free(new->srq_signer);
+	free(new);
+
+	return -1;
+#endif /* !SINGLE_SIGNING */
 }
 
 /*
@@ -5870,6 +5961,7 @@ dkimf_killchild(pid_t pid, int sig, _Bool dolog)
 static void
 dkimf_zapkey(struct dkimf_config *conf)
 {
+#if defined(SINGLE_SIGNING)
 	assert(conf != NULL);
 
 	if (conf->conf_seckey != NULL)
@@ -5878,6 +5970,7 @@ dkimf_zapkey(struct dkimf_config *conf)
 		free(conf->conf_seckey);
 		conf->conf_seckey = NULL;
 	}
+#endif /* SINGLE_SIGNING */
 }
 
 /*
@@ -6001,14 +6094,18 @@ dkimf_config_free(struct dkimf_config *conf)
 		dkimf_db_close(conf->conf_testdnsdb);
 #endif /* PRODUCTION_TESTS */
 
+#if defined(SINGLE_SIGNING)
 	if (conf->conf_domainsdb != NULL)
 		dkimf_db_close(conf->conf_domainsdb);
+#endif /* SINGLE_SIGNING */
 
 	if (conf->conf_bldb != NULL)
 		dkimf_db_close(conf->conf_bldb);
 
+#if defined(SINGLE_SIGNING)
 	if (conf->conf_domlist != NULL)
 		free(conf->conf_domlist);
+#endif /* SINGLE_SIGNING */
 
 	if (conf->conf_omithdrdb != NULL)
 		dkimf_db_close(conf->conf_omithdrdb);
@@ -6487,12 +6584,14 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 			                  sizeof conf->conf_reqhdrs);
 		}
 
+#if defined(SINGLE_SIGNING)
 		if (conf->conf_selector == NULL)
 		{
 			(void) config_get(data, "Selector",
 			                  &conf->conf_selector,
 			                  sizeof conf->conf_selector);
 		}
+#endif /* SINGLE_SIGNING */
 
 #ifdef _FFR_SENDER_MACRO
 		if (conf->conf_sendermacro == NULL)
@@ -6548,12 +6647,14 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 			conf->conf_reporthost = str;
 #endif /* _FFR_STATS */
 
+#if defined(SINGLE_SIGNING)
 		if (!conf->conf_subdomains)
 		{
 			(void) config_get(data, "SubDomains",
 			                  &conf->conf_subdomains,
 			                  sizeof conf->conf_subdomains);
 		}
+#endif /* SINGLE_SIGNING */
 
 		if (!conf->conf_dolog)
 		{
@@ -7571,12 +7672,16 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		(void) config_get(data, "KeyTable", &conf->conf_keytable,
 		                  sizeof conf->conf_keytable);
 
+#if defined(SINGLE_SIGNING)
 		if (conf->conf_keytable == NULL)
 		{
 			(void) config_get(data, "KeyFile", &conf->conf_keyfile,
 			                  sizeof conf->conf_keyfile);
 		}
 		else
+#else /* SINGLE_SIGNING */
+		if (conf->conf_keytable != NULL)
+#endif /* !SINGLE_SIGNING */
 		{
 			int status;
 			char *dberr = NULL;
@@ -7594,15 +7699,19 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 				return -1;
 			}
 
+#if defined(SINGLE_SIGNING)
 			conf->conf_selector = NULL;
+#endif /* SINGLE_SIGNING */
 		}
 	}
 
+#if defined(SINGLE_SIGNING)
 	if (conf->conf_signtabledb != NULL && conf->conf_keytabledb == NULL)
 	{
 		snprintf(err, errlen, "use of SigningTable requires KeyTable");
 		return -1;
 	}
+#endif /* SINGLE_SIGNING */
 
 	str = NULL;
 	if (data != NULL)
@@ -7747,6 +7856,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 	}
 #endif /* _FFR_RATE_LIMIT */
 
+#if defined(SINGLE_SIGNING)
 	str = NULL;
 	if (conf->conf_domlist != NULL)
 	{
@@ -7772,6 +7882,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 			return -1;
 		}
 	}
+#endif /* SINGLE_SIGNING */
 
 	str = NULL;
 	if (data != NULL)
@@ -8222,6 +8333,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 
 	dkimf_reportaddr(conf);
 
+#if defined(SINGLE_SIGNING)
 	/* load the secret key, if one was specified */
 	if (conf->conf_keyfile != NULL)
 	{
@@ -8393,10 +8505,12 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		s33krit[s.st_size] = '\0';
 		conf->conf_seckey = s33krit;
 	}
+#endif /* SINGLE_SIGNING */
 
 	/* confirm signing mode parameters */
 	if ((conf->conf_mode & DKIMF_MODE_SIGNER) != 0)
 	{
+#if defined(SINGLE_SIGNING)
 		if ((conf->conf_selector != NULL &&
 		     conf->conf_keyfile == NULL) ||
 		    (conf->conf_selector == NULL &&
@@ -8442,7 +8556,28 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 			return -1;
 		}
 #endif /* USE_LUA */
+#else /* SINGLE_SIGNING */
+#if defined(USE_LUA)
+		if (conf->conf_keytabledb == NULL ||
+		    (conf->conf_signtabledb == NULL &&
+		     conf->conf_setupfunc == NULL))
+		{
+			snprintf(err, errlen,
+			         "KeyTable and "
+			         "SigningTable or SetupPolicyScript required");
+			return -1;
+                }
+#else /* USE_LUA */
+		if (conf->conf_keytabledb == NULL || conf->conf_signtabledb == NULL)
+		{
+			snprintf(err, errlen,
+			         "KeyTable and SigningTable required");
+			return -1;
+                }
+#endif /* !USE_LUA */
+#endif /* !SINGLE_SIGNING */
 
+#if defined(SINGLE_SIGNING)
 		/*
 		**  Verify that the SingingTable doesn't reference any
 		**  missing KeyTable entries.
@@ -8506,6 +8641,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 				dbd[0].dbdata_flags = 0;
 			}
 		}
+#endif /* SINGLE_SIGNING */
 	}
 
 	/* activate logging if requested */
@@ -11000,6 +11136,7 @@ dkimf_check_conditional(struct msgctx *dfc, struct dkimf_config *conf,
 
 			memset(newsr, '\0', sizeof(*newsr));
 
+#if defined(SINGLE_SIGNING)
 			if (sr->srq_keydata == NULL)
 			{
 				keydata = (dkim_sigkey_t) conf->conf_seckey;
@@ -11007,6 +11144,7 @@ dkimf_check_conditional(struct msgctx *dfc, struct dkimf_config *conf,
 				selector = conf->conf_selector;
 			}
 			else
+#endif /* SINGLE_SIGNING */
 			{
 				keydata = sr->srq_keydata;
 				sdomain = sr->srq_domain;
@@ -12114,6 +12252,9 @@ mlfi_eoh(SMFICTX *ctx)
 		bool match = FALSE;
 		char *at;
 		char *dot;
+#if !defined(SINGLE_SIGNING)
+		const char * key = "";
+#endif /* !SINGLE_SIGNING */
 		struct addrlist *a;
 		char resignkey[BUFRSZ + 1];
 		struct dkimf_db_data dbd;
@@ -12143,6 +12284,9 @@ mlfi_eoh(SMFICTX *ctx)
 				domainok = TRUE;
 				originok = TRUE;
 				dfc->mctx_resign = TRUE;
+#if !defined(SINGLE_SIGNING)
+				key = a->a_addr;
+#endif /* !SINGLE_SIGNING */
 				break;
 			}
 
@@ -12170,6 +12314,9 @@ mlfi_eoh(SMFICTX *ctx)
 				domainok = TRUE;
 				originok = TRUE;
 				dfc->mctx_resign = TRUE;
+#if !defined(SINGLE_SIGNING)
+				key = at + 1;
+#endif /* !SINGLE_SIGNING */
 				break;
 			}
 
@@ -12193,7 +12340,14 @@ mlfi_eoh(SMFICTX *ctx)
 				}
 
 				if (match)
+#if defined(SINGLE_SIGNING)
 					break;
+#else /* SINGLE_SIGNING */
+				{
+					key = dot;
+					break;
+				}
+#endif /* !SINGLE_SIGNING */
 			}
 
 			if (match)
@@ -12207,20 +12361,31 @@ mlfi_eoh(SMFICTX *ctx)
 
 		if (match)
 		{
+#if defined(SINGLE_SIGNING)
 			if (conf->conf_keytabledb == NULL ||
+#else /* SINGLE_SIGNING */
+			if (
+#endif /* !SINGLE_SIGNING */
 			    resignkey[0] == '\0')
 			{
+#if defined(SINGLE_SIGNING)
 				status = dkimf_add_signrequest(dfc, NULL, NULL,
 				                               NULL,
 				                               (ssize_t) -1);
 
 				if (status != 0)
+#endif /* SINGLE_SIGNING */
 				{
 					if (dolog)
 					{
 						syslog(LOG_ERR,
+#if defined(SINGLE_SIGNING)
 						       "%s: failed to add signature for default key",
 						       dfc->mctx_jobid);
+#else /* SINGLE_SIGNING */
+						       "%s: no key name in ResignMailTo for '%s'",
+						       dfc->mctx_jobid, key);
+#endif /* !SINGLE_SIGNING */
 					}
 
 					dkimf_dstring_free(addr);
@@ -12394,6 +12559,7 @@ mlfi_eoh(SMFICTX *ctx)
 		}
 	}
 
+#if defined(SINGLE_SIGNING)
 	/* is it a domain we sign for? */
 	if (!domainok && conf->conf_domainsdb != NULL)
 	{
@@ -12459,6 +12625,7 @@ mlfi_eoh(SMFICTX *ctx)
 			       dfc->mctx_jobid, dfc->mctx_domain);
 		}
 	}
+#endif /* SINGLE_SIGNING */
 
 	/* warn if the domain was OK but didn't come from a safe source */
 	if (domainok && !originok)
@@ -12481,7 +12648,15 @@ mlfi_eoh(SMFICTX *ctx)
 #ifdef _FFR_LUA_ONLY_SIGNING
 	    !conf->conf_luasigning &&
 #endif /* _FFR_LUA_ONLY_SIGNING */
+#if defined(SINGLE_SIGNING)
 	    conf->conf_keytabledb != NULL && conf->conf_signtabledb != NULL)
+#else /* SINGLE_SIGNING */
+#if defined(USE_LUA)
+	    conf->conf_signtabledb != NULL)
+#else /* USE_LUA */
+	    TRUE)
+#endif /* !USE_LUA */
+#endif /* !SINGLE_SIGNING */
 	{
 		int found;
 		char errkey[BUFRSZ + 1];
@@ -12611,6 +12786,7 @@ mlfi_eoh(SMFICTX *ctx)
 	}
 #endif /* USE_LUA */
 
+#if defined(SINGLE_SIGNING)
 	/* create a default signing request if there was a domain match */
 	if (domainok && originok && dfc->mctx_srhead == NULL)
 	{
@@ -12629,6 +12805,7 @@ mlfi_eoh(SMFICTX *ctx)
 			return SMFIS_TEMPFAIL;
 		}
 	}
+#endif /* SINGLE_SIGNING */
 
 	/*
 	**  If we're not operating in the role matching the required operation,
@@ -12768,21 +12945,29 @@ mlfi_eoh(SMFICTX *ctx)
 			else
 				signlen = sr->srq_signlen;
 
+#if defined(SINGLE_SIGNING)
 			if (sr->srq_keydata != NULL)
+#endif /* SINGLE_SIGNING */
 			{
 				keydata = sr->srq_keydata;
 				selector = sr->srq_selector;
+#if defined(SINGLE_SIGNING)
 				if (sr->srq_domain != NULL)
+#endif /* SINGLE_SIGNING */
 					sdomain = sr->srq_domain;
+#if defined(SINGLE_SIGNING)
 				else
 					sdomain = dfc->mctx_domain;
+#endif /* SINGLE_SIGNING */
 			}
+#if defined(SINGLE_SIGNING)
 			else
 			{
 				sdomain = dfc->mctx_domain;
 				keydata = (dkim_sigkey_t) conf->conf_seckey;
 				selector = conf->conf_selector;
 			}
+#endif /* SINGLE_SIGNING */
 
 			sr->srq_dkim = dkim_sign(conf->conf_libopendkim,
 			                         dfc->mctx_jobid,
@@ -15321,15 +15506,23 @@ mlfi_eom(SMFICTX *ctx)
 				char *d;
 				char *s;
 
+#if defined(SINGLE_SIGNING)
 				if (sr->srq_domain != NULL)
+#endif /* SINGLE_SIGNING */
 					d = sr->srq_domain;
+#if defined(SINGLE_SIGNING)
 				else
 					d = dfc->mctx_domain;
+#endif /* SINGLE_SIGNING */
 
+#if defined(SINGLE_SIGNING)
 				if (sr->srq_selector != NULL)
+#endif /* SINGLE_SIGNING */
 					s = sr->srq_selector;
+#if defined(SINGLE_SIGNING)
 				else
 					s = conf->conf_selector;
+#endif /* SINGLE_SIGNING */
 
 				syslog(LOG_INFO,
 				       "%s: %s field added (s=%s, d=%s)",
@@ -15605,8 +15798,10 @@ usage(void)
 #endif /* STANDALONE */
 	                "\t-b modes    \tselect operating modes\n"
 	                "\t-c canon    \tcanonicalization to use when signing\n"
+#if defined(SINGLE_SIGNING)
 	                "\t-d domlist  \tdomains to sign\n"
 	                "\t-D          \talso sign subdomains\n"
+#endif /* SINGLE_SIGNING */
 	                "\t-e name     \textract configuration value and exit\n"
 #if defined(STANDALONE)
 	                "\t-f          \tdon't fork-and-exit\n"
@@ -15614,7 +15809,9 @@ usage(void)
 #if defined(PRODUCTION_TESTS)
 	                "\t-F time     \tfixed timestamp to use when signing (test mode only)\n"
 #endif /* PRODUCTION_TESTS */
+#if defined(SINGLE_SIGNING)
 	                "\t-k keyfile  \tlocation of secret key file\n"
+#endif /* SINGLE_SIGNING */
 	                "\t-l          \tlog activity to system log\n"
 	                "\t-L limit    \tsignature limit requirements\n"
 	                "\t-n          \tcheck configuration and exit\n"
@@ -15627,7 +15824,9 @@ usage(void)
 		        "\t-Q          \tquery test mode\n"
 #endif /* PRODUCTION_TESTS */
 	                "\t-r          \trequire basic RFC5322 header compliance\n"
+#if defined(SINGLE_SIGNING)
 	                "\t-s selector \tselector to use when signing\n"
+#endif /* SINGLE_SIGNING */
 	                "\t-S signalg  \tsignature algorithm to use when signing\n"
 #if defined(PRODUCTION_TESTS)
 			"\t-t testfile \tevaluate RFC5322 message in \"testfile\"\n"
@@ -15781,6 +15980,7 @@ main(int argc, char **argv)
 			curconf->conf_canonstr = optarg;
 			break;
 
+#if defined(SINGLE_SIGNING)
 		  case 'd':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
@@ -15796,6 +15996,7 @@ main(int argc, char **argv)
 		  case 'D':
 			curconf->conf_subdomains = TRUE;
 			break;
+#endif /* SINGLE_SIGNING */
 
 		  case 'e':
 			extract = optarg;
@@ -15833,11 +16034,13 @@ main(int argc, char **argv)
 			break;
 #endif /* PRODUCTION_TESTS */
 
+#if defined(SINGLE_SIGNING)
 		  case 'k':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
 			curconf->conf_keyfile = optarg;
 			break;
+#endif /* SINGLE_SIGNING */
 
 		  case 'l':
 			curconf->conf_dolog = TRUE;
@@ -15886,11 +16089,13 @@ main(int argc, char **argv)
 			curconf->conf_reqhdrs = TRUE;
 			break;
 
+#if defined(SINGLE_SIGNING)
 		  case 's':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
 			curconf->conf_selector = (u_char *) optarg;
 			break;
+#endif /* SINGLE_SIGNING */
 
 		  case 'S':
 			if (optarg == NULL || *optarg == '\0')

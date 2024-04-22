@@ -502,8 +502,10 @@ dkimf_lua_setup_hook(void *ctx, const char *script, size_t scriptlen,
 	lua_setglobal(l, DKIMF_GC);
 
 	/* DB handle constants */
+#if defined(SINGLE_SIGNING)
 	lua_pushnumber(l, DB_DOMAINS);
 	lua_setglobal(l, "DB_DOMAINS");
+#endif /* SINGLE_SIGNING */
 	lua_pushnumber(l, DB_THIRDPARTY);
 	lua_setglobal(l, "DB_THIRDPARTY");
 	lua_pushnumber(l, DB_DONTSIGNTO);
@@ -661,8 +663,10 @@ dkimf_lua_screen_hook(void *ctx, const char *script, size_t scriptlen,
 	lua_setglobal(l, DKIMF_GC);
 
 	/* DB handles */
+#if defined(SINGLE_SIGNING)
 	lua_pushnumber(l, DB_DOMAINS);
 	lua_setglobal(l, "DB_DOMAINS");
+#endif /* SINGLE_SIGNING */
 	lua_pushnumber(l, DB_THIRDPARTY);
 	lua_setglobal(l, "DB_THIRDPARTY");
 	lua_pushnumber(l, DB_DONTSIGNTO);

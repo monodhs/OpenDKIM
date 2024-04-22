@@ -10,8 +10,10 @@ include(MANPAGE_MACROS)dnl
 @STANDALONE_MANENDIF@
 [\-b modes]
 [\-c canon]
+@SINGLE_SIGNING_MANIF@
 [\-d domain[,...]]
 [\-D]
+@SINGLE_SIGNING_MANENDIF@
 [\-e name]
 @STANDALONE_MANIF@
 [\-f]
@@ -19,7 +21,9 @@ include(MANPAGE_MACROS)dnl
 @PRODUCTION_TESTS_MANIF@
 [\-F time]
 @PRODUCTION_TESTS_MANENDIF@
+@SINGLE_SIGNING_MANIF@
 [\-k keyfile]
+@SINGLE_SIGNING_MANENDIF@
 [\-l]
 [\-L min]
 [\-n]
@@ -32,7 +36,9 @@ include(MANPAGE_MACROS)dnl
 [\-Q]
 @PRODUCTION_TESTS_MANENDIF@
 [\-r]
+@SINGLE_SIGNING_MANIF@
 [\-s selector]
+@SINGLE_SIGNING_MANENDIF@
 [\-S signalg]
 @PRODUCTION_TESTS_MANIF@
 [\-t testfiles]
@@ -284,6 +290,7 @@ as defined by the DKIM specification.  The default is
 The value may include two different canonicalizations separated by a
 slash ("/") character, in which case the first will be applied to the
 headers and the second to the body.
+@SINGLE_SIGNING_MANIF@
 .TP
 .I \-d dataset
 A set of domains whose mail should be signed by this filter.  Mail from
@@ -293,6 +300,7 @@ other domains will be verified rather than being signed.
 Sign subdomains of those listed by the
 .I \-d
 option as well as the actual domains.
+@SINGLE_SIGNING_MANENDIF@
 .TP
 .I \-e name
 Extracts the value of
@@ -316,11 +324,13 @@ also used in conjunction with
 .I time_t
 (seconds since epoch) format.
 @PRODUCTION_TESTS_MANENDIF@
+@SINGLE_SIGNING_MANIF@
 .TP
 .I \-k keyfile
 Gives the location of a PEM-formatted private key to be used for signing
 all messages.  Ignored if a configuration file is referenced that defines
 a KeyTable.
+@SINGLE_SIGNING_MANENDIF@
 .TP
 .I \-l
 Log via calls to
@@ -403,12 +413,14 @@ number of fields to be retrieved.
 .I \-r
 Checks all messages for compliance with RFC5322 header count requirements.
 Non-compliant messages are rejected.
+@SINGLE_SIGNING_MANIF@
 .TP
 .I \-s selector
 Defines the name of the selector to be used when signing messages.
 See the
 .B DKIM
 specification for details.
+@SINGLE_SIGNING_MANENDIF@
 .TP
 .I \-S signalg
 Selects the signing algorithm to use when generating signatures.
@@ -492,11 +504,18 @@ security implications.
 .SH OPERATION
 A message will be verified unless it conforms to the signing criteria,
 which are: (1) the domain on the From: address (if present) must be listed
+@SINGLE_SIGNING_MANIF@
 by the
 .I \-d
 command line switch or the
 .I Domain
-configuration file setting, and (2) (a) the client connecting to the MTA must
+configuration file setting,
+@SINGLE_SIGNING_MANELSE@
+in the dataset referenced by the
+.I SigningTable
+configuration file setting,
+@SINGLE_SIGNING_MANENDIF@
+and (2) (a) the client connecting to the MTA must
 have authenticated, or (b) the client connecting to the MTA must be listed in
 the file referenced by the
 .I InternalHosts

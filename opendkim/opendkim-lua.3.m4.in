@@ -1,3 +1,4 @@
+include(MANPAGE_MACROS)dnl
 .TH opendkim-lua 3 "The Trusted Domain Project"
 .SH NAME
 .B opendkim-lua
@@ -122,8 +123,10 @@ should be one of
 (database of MTA names whose mail should be signed),
 .I DB_MACROS
 (database of MTA macro checks to be done when determining signing),
+@SINGLE_SIGNING_MANIF@
 .I DB_DOMAINS
 (database of domains to be signed),
+@SINGLE_SIGNING_MANENDIF@
 .I DB_SIGNINGTABLE
 (database of signing table entries),
 .I DB_THIRDPARTY
@@ -246,7 +249,11 @@ and
 message disposition; the MTA will be told immediately to take the specified
 action, and no further filter processing will occur.
 .TP
+@SINGLE_SIGNING_MANIF@
 .B odkim.sign(ctx[, keyname[, signer[, signlen]]])
+@SINGLE_SIGNING_MANELSE@
+.B odkim.sign(ctx, keyname[, signer[, signlen]])
+@SINGLE_SIGNING_MANENDIF@
 Requests that the filter sign the message represented by
 .I ctx
 using the specified
@@ -254,10 +261,14 @@ using the specified
 The key name will be translated into an actual domain, selector and private
 key via a query to the KeyTable (see the
 .I opendkim.conf(5)
-page for details).  The
+page for details).
+@SINGLE_SIGNING_MANIF@
+The
 .I keyname
 may be omitted if the KeyTable is not defined, meaning the single signing
-domain, selector and key should be used to sign.  Returns 1 on success
+domain, selector and key should be used to sign.
+@SINGLE_SIGNING_MANENDIF@
+Returns 1 on success
 and 0 on failure.  If a
 .I signer
 is specified, the string there will be included in the generated signature's

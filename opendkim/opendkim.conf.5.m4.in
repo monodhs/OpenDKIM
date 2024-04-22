@@ -241,6 +241,7 @@ See also the NOTES section below.
 .I Domain (dataset)
 A set of domains whose mail should be signed by this filter.  Mail from other
 domains will be verified rather than being signed.
+@SINGLE_SIGNING_MANNOTICE@
 
 This parameter is not required if a
 .I SigningTable
@@ -375,13 +376,19 @@ Gives the location of a PEM-formatted private key to be used for signing
 all messages.  Ignored if a
 .I KeyTable
 is defined.
+@SINGLE_SIGNING_MANNOTICE@
 
 .TP
 .I KeyTable (dataset)
 Gives the location of a file mapping key names to signing keys.
+@SINGLE_SIGNING_MANIF@
 If present, overrides any
 .I KeyFile
-setting in the configuration file.  The data set named here maps each key
+setting in the configuration file.
+@SINGLE_SIGNING_MANELSE@
+Must be present.
+@SINGLE_SIGNING_MANENDIF@
+The data set named here maps each key
 name to three values: (a) the name of the domain to use in the signature's
 "d=" value; (b) the name of the selector to use in the signature's "s=" value;
 and (c) either a private key or a path to a file containing a private key.
@@ -608,9 +615,14 @@ in which case the default is
 @PRODUCTION_TESTS_MANENDIF@
 When signing mode is enabled, one of the following combinations must also
 be set:
+@SINGLE_SIGNING_MANIF@
 (a) Domain, KeyFile, Selector, no KeyTable, no SigningTable;
 (b) KeyTable, SigningTable, no Domain, no KeyFile, no Selector;
 (c) KeyTable, SetupPolicyScript, no Domain, no KeyFile, no Selector.
+@SINGLE_SIGNING_MANELSE@
+(a) KeyTable and SigningTable;
+(b) KeyTable and SetupPolicyScript.
+@SINGLE_SIGNING_MANENDIF@
 
 .TP
 .I MTA (dataset)
@@ -978,10 +990,15 @@ record.  The full address is checked in each case, then the hostname, then
 each domain preceded by ".".  If there is a match, the value returned is
 presumed to be the name of a key in the 
 .I KeyTable
-(if defined) to be used to re-sign the message in addition to verifying it.
+@SINGLE_SIGNING_MANIF@
+(if defined)
+@SINGLE_SIGNING_MANENDIF@
+to be used to re-sign the message in addition to verifying it.
+@SINGLE_SIGNING_MANIF@
 If there is a match without a
 .I KeyTable,
 the default key is applied.
+@SINGLE_SIGNING_MANENDIF@
 @RESIGN_MANNOTICE@
 
 .TP
@@ -1024,6 +1041,7 @@ specification for details.  Used only when signing with a single key;
 see the
 .I SigningTable
 parameter below for more information.
+@SINGLE_SIGNING_MANNOTICE@
 
 This parameter is ignored if a
 .I KeyTable
@@ -1244,6 +1262,7 @@ CRLF-terminated are considered malformed and will produce an error.
 Sign subdomains of those listed by the
 .I Domain
 parameter as well as the actual domains.
+@SINGLE_SIGNING_MANNOTICE@
 
 .TP
 .I Syslog (Boolean)

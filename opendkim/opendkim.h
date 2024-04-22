@@ -66,7 +66,9 @@
 #define	SUPERUSER	"root"
 #define	UNKNOWN		"unknown"
 
+#if defined(SINGLE_SIGNING)
 #define	DB_DOMAINS	1
+#endif /* SINGLE_SIGNING */
 #define DB_THIRDPARTY	2
 #define	DB_DONTSIGNTO	3
 #define	DB_MTAS		4

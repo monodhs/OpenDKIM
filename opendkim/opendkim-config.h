@@ -60,7 +60,9 @@ struct configdef dkimf_config[] =
 	{ "DisableCryptoInit",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "DNSConnect",			CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "DNSTimeout",			CONFIG_TYPE_INTEGER,	FALSE },
+#if defined(SINGLE_SIGNING)
 	{ "Domain",			CONFIG_TYPE_STRING,	FALSE },
+#endif /* SINGLE_SIGNING */
 	{ "DomainKeysCompat",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "DontSignMailTo",		CONFIG_TYPE_STRING,	FALSE },
 #if defined(STANDALONE)
@@ -86,8 +88,12 @@ struct configdef dkimf_config[] =
 	{ "InternalHosts",		CONFIG_TYPE_STRING,	FALSE },
 	{ "KeepAuthResults",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "KeepTemporaryFiles",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(SINGLE_SIGNING)
 	{ "KeyFile",			CONFIG_TYPE_STRING,	FALSE },
 	{ "KeyTable",			CONFIG_TYPE_STRING,	FALSE },
+#else /* SINGLE_SIGNING */
+	{ "KeyTable",			CONFIG_TYPE_STRING,	TRUE  },
+#endif /* !SINGLE_SIGNING */
 #ifdef USE_LDAP
 	{ "LDAPAuthMechanism",		CONFIG_TYPE_STRING,	FALSE },
 # ifdef USE_SASL
@@ -199,7 +205,9 @@ struct configdef dkimf_config[] =
 #ifdef USE_LUA
 	{ "ScreenPolicyScript",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* USE_LUA */
+#if defined(SINGLE_SIGNING)
 	{ "Selector",			CONFIG_TYPE_STRING,	FALSE },
+#endif /* SINGLE_SIGNING */
 	{ "SelectCanonicalizationHeader", CONFIG_TYPE_STRING,	FALSE },
 	{ "SenderHeaders",		CONFIG_TYPE_STRING,	FALSE },
 #ifdef _FFR_SENDER_MACRO
@@ -212,7 +220,11 @@ struct configdef dkimf_config[] =
 	{ "SignatureAlgorithm",		CONFIG_TYPE_STRING,	FALSE },
 	{ "SignatureTTL",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "SignHeaders",		CONFIG_TYPE_STRING,	FALSE },
+#if defined(SINGLE_SIGNING) || defined(USE_LUA)
 	{ "SigningTable",		CONFIG_TYPE_STRING,	FALSE },
+#else /* SINGLE_SIGNING || USE_LUA */
+	{ "SigningTable",		CONFIG_TYPE_STRING,	TRUE  },
+#endif /* !SINGLE_SIGNING && !USE_LUA */
 #ifdef HAVE_CURL_EASY_STRERROR
 	{ "SMTPURI",			CONFIG_TYPE_STRING,	FALSE },
 #endif /* HAVE_CURL_EASY_STRERROR */
@@ -235,7 +247,9 @@ struct configdef dkimf_config[] =
 #if defined(PRODUCTION_TESTS)
 	{ "StrictTestMode",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #endif /* PRODUCTION_TESTS */
+#if defined(SINGLE_SIGNING)
 	{ "SubDomains",			CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* SINGLE_SIGNING */
 	{ "Syslog",			CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "SyslogFacility",		CONFIG_TYPE_STRING,	FALSE },
 	{ "SyslogName",			CONFIG_TYPE_STRING,	FALSE },
