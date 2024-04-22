@@ -617,6 +617,8 @@ dkimf_rep_check(DKIMF_REP rep, DKIM_SIGINFO *sig, _Bool spam,
 	}
 }
 
+#if defined(STANDALONE)
+
 /*
 **  DKIMF_REP_CHOWN_CACHE -- set the owner of a cache file
 **
@@ -640,4 +642,5 @@ dkimf_rep_chown_cache(DKIMF_REP rep, uid_t uid)
 	else
 		return -1;
 }
+#endif /* STANDALONE */
 #endif /* _FFR_REPUTATION */

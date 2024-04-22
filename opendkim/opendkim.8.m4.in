@@ -1,16 +1,21 @@
+include(MANPAGE_MACROS)dnl
 .TH opendkim 8 "The Trusted Domain Project"
 .SH NAME
 .B opendkim
 \- DKIM signing and verifying filter for MTAs
 .SH SYNOPSIS
 .B opendkim
+@STANDALONE_MANIF@
 [\-A]
+@STANDALONE_MANENDIF@
 [\-b modes]
 [\-c canon]
 [\-d domain[,...]]
 [\-D]
 [\-e name]
+@STANDALONE_MANIF@
 [\-f]
+@STANDALONE_MANENDIF@
 [\-F time]
 [\-k keyfile]
 [\-l]
@@ -18,14 +23,18 @@
 [\-n]
 [\-o hdrlist]
 [\-p socketspec]
+@STANDALONE_MANIF@
 [\-P pidfile]
+@STANDALONE_MANENDIF@
 [\-Q]
 [\-r]
 [\-s selector]
 [\-S signalg]
 [\-t testfiles]
 [\-T secs]
+@STANDALONE_MANIF@
 [\-u userid[:group]]
+@STANDALONE_MANENDIF@
 [\-v]
 [\-V]
 [\-W]
@@ -225,6 +234,7 @@ Elements in the list are either simple data elements that are part of the
 set or, in the case of an entry of the form "x=y", are stored as key-value
 pairs as described above.
 .SH OPTIONS
+@STANDALONE_MANIF@
 .TP
 .I \-A
 Automatically re-start on failures.  Use with caution; if the filter
@@ -233,6 +243,7 @@ fails instantly after it starts, this can cause a tight
 loop.  This can be mitigated using some values in the configuration file
 to limit restarting.  See
 .I opendkim.conf(5).
+@STANDALONE_MANENDIF@
 .TP
 .I \-b modes
 Selects operating modes.
@@ -275,12 +286,14 @@ option as well as the actual domains.
 Extracts the value of
 .I name
 from the configuration file (if any).
+@STANDALONE_MANIF@
 .TP
 .I \-f
 Normally
 .I opendkim
 forks and exits immediately, leaving the service running in the background.
 This flag suppresses that behaviour so that it runs in the foreground.
+@STANDALONE_MANENDIF@
 .TP
 .I \-F time
 Specifies a fixed time to use when generating signatures.  Ignored unless
@@ -359,9 +372,11 @@ square brackets.  If neither socket type is specified,
 is assumed, meaning the parameter is interpreted as a path at which
 the socket should be created.  This parameter is mandatory either here or
 in the configuration file.
+@STANDALONE_MANIF@
 .TP
 .I \-P pidfile
 Specifies a file into which the filter should write its process ID at startup.
+@STANDALONE_MANENDIF@
 .TP
 .I \-Q
 Query test mode.  The filter will read two lines from standard input, one
@@ -400,6 +415,7 @@ may be "-" if the message should be read from standard input.
 Sets the DNS timeout in seconds.  A value of 0 causes an infinite wait.
 The default is 5.  Ignored if not using an asynchronous resolver package.
 See also the NOTES section below.
+@STANDALONE_MANIF@
 .TP
 .I \-u userid[:group]
 Attempts to be come the specified
@@ -410,6 +426,7 @@ and primary group ID of the named
 unless an alternate
 .I group
 is specified.  See the FILE PERMISSIONS section for more information.
+@STANDALONE_MANENDIF@
 .TP
 .I \-v
 Increase verbose output during test mode (see
@@ -503,20 +520,29 @@ file, it will be re-read and the new values used.  Note that any
 command line overrides provided at startup time will be lost when this is
 done.  Also, the following configuration file values (and their corresponding
 command line items, if any) are not reloaded through this process:
+@STANDALONE_MANIF@
 AutoRestart (\-A),
 AutoRestartCount,
 AutoRestartRate,
 Background,
+@STANDALONE_MANENDIF@
 MilterDebug,
+@STANDALONE_MANIF@
 PidFile (\-P),
+@STANDALONE_MANENDIF@
 POPDBFile,
 Quarantine (\-q),
 QueryCache,
 Socket (\-p),
 StrictTestMode,
 TestPublicKeys,
+@STANDALONE_MANIF@
 UMask,
-UserID (\-u).  The filter does not automatically check the configuration
+UserID (\-u).
+@STANDALONE_MANELSE@
+UMask.
+@STANDALONE_MANENDIF@
+The filter does not automatically check the configuration
 file for changes and reload.
 .SH MTA MACROS
 .B opendkim
@@ -532,6 +558,7 @@ then it is not able to apply their corresponding tests or do useful logging.
 Consult your MTA documentation to determine how to adjust your its
 configuration if some or all of these are not available.
 .SH FILE PERMISSIONS
+@STANDALONE_MANIF@
 When the filter is started as the superuser and the UserID (\-u) setting is
 used, the filter gives up its root privileges by changing to the specified
 user after the following steps are taken: (1) the configuration file (if any)
@@ -544,9 +571,17 @@ files or the configuration file as the superuser (and possibly from a
 different root), and any key files referenced by the KeyTable will also be
 accessed by the new user.
 
-Thus, keys referenced by the KeyTable must always be accessible for read by
-the unprivileged user.  Also, run-time reloads are not possible if any of the
+Thus, keys referenced by the KeyTable
+@STANDALONE_MANELSE@
+If the filter is started as an unprivileged user, all configuration,
+database, and key files
+@STANDALONE_MANENDIF@
+must always be accessible for read by
+the unprivileged user.
+@STANDALONE_MANIF@
+Also, run-time reloads are not possible if any of the
 other files will not be readable by the unprivileged user.
+@STANDALONE_MANENDIF@
 .SH ENVIRONMENT
 The following environment variable(s) can be used to adjust the behaviour
 of this filter:

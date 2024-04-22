@@ -137,7 +137,11 @@
 #endif /* _FFR_REPUTATION */
 
 /* macros */
+#if defined(STANDALONE)
 #define CMDLINEOPTS	"Ab:c:d:De:fF:k:lL:no:p:P:Qrs:S:t:T:u:vVWx:X?"
+#else /* STANDALONE */
+#define CMDLINEOPTS	"b:c:d:De:F:k:lL:no:p:Qrs:S:t:T:vVWx:X?"
+#endif /* !STANDALONE */
 
 #ifndef MIN
 # define MIN(x,y)	((x) < (y) ? (x) : (y))
@@ -244,7 +248,9 @@ struct dkimf_config
 	_Bool		conf_stricthdrs;	/* strict header checks */
 	_Bool		conf_keeptmpfiles;	/* keep temporary files */
 	_Bool		conf_multisig;		/* multiple signatures */
+#if defined(STANDALONE)
 	_Bool		conf_enablecores;	/* enable coredumps */
+#endif /* STANDALONE */
 	_Bool		conf_noheaderb;		/* suppress "header.b" */
 	_Bool		conf_singleauthres;	/* single Auth-Results */
 #if defined(REQUIRE_SAFE_KEYS)
@@ -755,7 +761,9 @@ _Bool allowdeprecated;				/* allow deprecated config values */
 _Bool querycache;				/* local query cache */
 #endif /* QUERY_CACHE */
 _Bool die;					/* global "die" flag */
+#if defined(STANDALONE)
 int diesig;					/* signal to distribute */
+#endif /* STANDALONE */
 #ifdef QUERY_CACHE
 time_t cache_lastlog;				/* last cache stats logged */
 #endif /* QUERY_CACHE */
@@ -4328,6 +4336,8 @@ dkimf_init_syslog(char *name, char *facility)
 #endif /* LOG_MAIL */
 }
 
+#if defined(STANDALONE)
+
 /*
 **  DKIMF_RESTART_CHECK -- initialize/check restart rate information
 **
@@ -4385,6 +4395,8 @@ dkimf_restart_check(int n, time_t t)
 		return TRUE;
 	}
 }
+
+#endif /* STANDALONE */
 
 /*
 **  DKIMF_REPTOKEN -- replace a token in an input string with another string
@@ -5717,6 +5729,8 @@ dkimf_getsrlist(void *vp)
 		return NULL;
 }
 
+#if defined(STANDALONE)
+
 /*
 **  DKIMF_SIGHANDLER -- signal handler
 **
@@ -5741,6 +5755,8 @@ dkimf_sighandler(int sig)
 			reload = TRUE;
 	}
 }
+
+#endif /* STANDALONE */
 
 /*
 **  DKIMF_RELOADER -- reload signal thread
@@ -5774,6 +5790,8 @@ dkimf_reloader(/* UNUSED */ void *vp)
 	return NULL;
 }
 
+#if defined(STANDALONE)
+
 /*
 **  DKIMF_KILLCHILD -- kill child process
 **
@@ -5795,6 +5813,8 @@ dkimf_killchild(pid_t pid, int sig, _Bool dolog)
 		       strerror(errno));
 	}
 }
+
+#endif /* STANDALONE */
 
 /*
 **  DKIMF_ZAPKEY -- clobber the copy of the private key
@@ -6198,7 +6218,11 @@ dkimf_parsehandler(struct config *cfg, char *name, struct handling *hndl,
 
 static int
 dkimf_config_load(struct config *data, struct dkimf_config *conf,
+#if defined(STANDALONE)
                   char *err, size_t errlen, char *become)
+#else /* STANDALONE */
+                  char *err, size_t errlen)
+#endif /* !STANDALONE */
 {
 #ifdef USE_LDAP
 	_Bool btmp;
@@ -6303,9 +6327,11 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 			                  sizeof conf->conf_dnstimeout);
 		}
 
+#if defined(STANDALONE)
 		(void) config_get(data, "EnableCoredumps",
 		                  &conf->conf_enablecores,
 		                  sizeof conf->conf_enablecores);
+#endif /* STANDALONE */
 
 		(void) config_get(data, "MinimumKeyBits",
 		                  &conf->conf_minkeybits,
@@ -6989,11 +7015,13 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		}
 #endif /* USE_LUA */
 
+#if defined(STANDALONE)
 		if (become == NULL)
 		{
 			(void) config_get(data, "Userid", &become,
 			                  sizeof become);
 		}
+#endif /* STANDALONE */
 	}
 
 #if defined(USE_LDAP) || defined(USE_ODBX)
@@ -8195,6 +8223,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		}
 
 #if defined(REQUIRE_SAFE_KEYS)
+#if defined(STANDALONE)
 		if (become != NULL)
 		{
 			struct passwd *pw;
@@ -8217,6 +8246,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 
 			asuser = pw->pw_uid;
 		}
+#endif /* STANDALONE */
 
 		if (!dkimf_securefile(conf->conf_keyfile, &ino, asuser,
 		                      err, errlen) ||
@@ -8925,7 +8955,11 @@ dkimf_config_reload(void)
 		}
 
 		if (!err && dkimf_config_load(cfg, new, errbuf,
+#if defined(STANDALONE)
 		                              sizeof errbuf, NULL) != 0)
+#else /* STANDALONE */
+		                              sizeof errbuf) != 0)
+#endif /* !STANDALONE */
 		{
 			if (curconf->conf_dolog)
 				syslog(LOG_ERR, "%s: %s", conffile, errbuf);
@@ -9052,6 +9086,8 @@ dkimf_checkbldb(DKIMF_DB db, char *to, char *jobid)
 	return FALSE;
 }
 
+#if defined(STANDALONE)
+
 /*
 **  DKIMF_STDIO -- set up the base descriptors to go nowhere
 **
@@ -9080,6 +9116,8 @@ dkimf_stdio(void)
 
 	(void) setsid();
 }
+
+#endif /* STANDALONE */
 
 /*
 **  DKIMF_SENDPROGRESS -- tell the MTA "we're working on it!"
@@ -15493,20 +15531,26 @@ static int
 usage(void)
 {
 	fprintf(stderr, "%s: usage: %s -p socketfile [options]\n"
+#if defined(STANDALONE)
 	                "\t-A          \tauto-restart\n"
+#endif /* STANDALONE */
 	                "\t-b modes    \tselect operating modes\n"
 	                "\t-c canon    \tcanonicalization to use when signing\n"
 	                "\t-d domlist  \tdomains to sign\n"
 	                "\t-D          \talso sign subdomains\n"
 	                "\t-e name     \textract configuration value and exit\n"
+#if defined(STANDALONE)
 	                "\t-f          \tdon't fork-and-exit\n"
+#endif /* STANDALONE */
 	                "\t-F time     \tfixed timestamp to use when signing (test mode only)\n"
 	                "\t-k keyfile  \tlocation of secret key file\n"
 	                "\t-l          \tlog activity to system log\n"
 	                "\t-L limit    \tsignature limit requirements\n"
 	                "\t-n          \tcheck configuration and exit\n"
 			"\t-o hdrlist  \tlist of headers to omit from signing\n"
+#if defined(STANDALONE)
 			"\t-P pidfile  \tfile into which to write process ID\n"
+#endif /* STANDALONE */
 	                "\t-q          \tquarantine messages that fail to verify\n"
 		        "\t-Q          \tquery test mode\n"
 	                "\t-r          \trequire basic RFC5322 header compliance\n"
@@ -15514,7 +15558,9 @@ usage(void)
 	                "\t-S signalg  \tsignature algorithm to use when signing\n"
 			"\t-t testfile \tevaluate RFC5322 message in \"testfile\"\n"
 			"\t-T timeout  \tDNS timeout (seconds)\n"
+#if defined(STANDALONE)
 	                "\t-u userid   \tchange to specified userid\n"
+#endif /* STANDALONE */
 	                "\t-v          \tincrease verbosity during testing\n"
 	                "\t-V          \tprint version number and terminate\n"
 	                "\t-W          \t\"why?!\" mode (log sign/verify decision logic)\n"
@@ -15532,9 +15578,13 @@ usage(void)
 int
 main(int argc, char **argv)
 {
+#if defined(STANDALONE)
 	_Bool autorestart = FALSE;
+#endif /* STANDALONE */
 	_Bool gotp = FALSE;
+#if defined(STANDALONE)
 	_Bool dofork = TRUE;
+#endif /* STANDALONE */
 	_Bool stricttest = FALSE;
 	_Bool configonly = FALSE;
 	_Bool querytest = FALSE;
@@ -15542,8 +15592,10 @@ main(int argc, char **argv)
 	int status;
 	int n;
 	int verbose = 0;
+#if defined(STANDALONE)
 	int maxrestarts = 0;
 	int maxrestartrate_n = 0;
+#endif /* STANDALONE */
 	int filemask = -1;
 	int mdebug = 0;
 #ifdef HAVE_SMFI_VERSION
@@ -15552,21 +15604,29 @@ main(int argc, char **argv)
 	u_int mvrelease;
 #endif /* HAVE_SMFI_VERSION */
 	time_t now;
+#if defined(STANDALONE)
 	gid_t gid = (gid_t) -1;
+#endif /* STANDALONE */
 	sigset_t sigset;
 	uint64_t fixedtime = (uint64_t) -1;
+#if defined(STANDALONE)
 	time_t maxrestartrate_t = 0;
+#endif /* STANDALONE */
 	pthread_t rt;
 	unsigned long tmpl;
 	const char *args = CMDLINEOPTS;
+#if defined(STANDALONE)
 	FILE *f;
 	struct passwd *pw = NULL;
 	struct group *gr = NULL;
 	char *become = NULL;
 	char *chrootdir = NULL;
+#endif /* STANDALONE */
 	char *extract = NULL;
 	char *p;
+#if defined(STANDALONE)
 	char *pidfile = NULL;
+#endif /* STANDALONE */
 #ifdef POPAUTH
 	char *popdbfile = NULL;
 #endif /* POPAUTH */
@@ -15612,9 +15672,11 @@ main(int argc, char **argv)
 	{
 		switch (c)
 		{
+#if defined(STANDALONE)
 		  case 'A':
 			autorestart = TRUE;
 			break;
+#endif /* STANDALONE */
 
 		  case 'b':
 			if (optarg == NULL || *optarg == '\0')
@@ -15648,9 +15710,11 @@ main(int argc, char **argv)
 			extract = optarg;
 			break;
 
+#if defined(STANDALONE)
 		  case 'f':
 			dofork = FALSE;
 			break;
+#endif /* STANDALONE */
 
 		  case 'F':
 			if (optarg == NULL || *optarg == '\0')
@@ -15710,11 +15774,13 @@ main(int argc, char **argv)
 			gotp = TRUE;
 			break;
 
+#if defined(STANDALONE)
 		  case 'P':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
 			pidfile = optarg;
 			break;
+#endif /* STANDALONE */
 
 		  case 'Q':
 			querytest = TRUE;
@@ -15769,11 +15835,13 @@ main(int argc, char **argv)
 
 			break;
 
+#if defined(STANDALONE)
 		  case 'u':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
 			become = optarg;
 			break;
+#endif /* STANDALONE */
 
 		  case 'v':
 			verbose++;
@@ -15923,7 +15991,11 @@ main(int argc, char **argv)
 		}
 	}
 
+#if defined(STANDALONE)
 	if (dkimf_config_load(cfg, curconf, err, sizeof err, become) != 0)
+#else /* STANDALONE */
+	if (dkimf_config_load(cfg, curconf, err, sizeof err) != 0)
+#endif /* !STANDALONE */
 	{
 		if (conffile == NULL)
 			conffile = "(stdin)";
@@ -16179,6 +16251,7 @@ main(int argc, char **argv)
 
 	if (cfg != NULL)
 	{
+#if defined(STANDALONE)
 		if (!autorestart)
 		{
 			(void) config_get(cfg, "AutoRestart", &autorestart,
@@ -16271,6 +16344,7 @@ main(int argc, char **argv)
 			(void) config_get(cfg, "Background", &dofork,
 			                  sizeof dofork);
 		}
+#endif /* STANDALONE */
 
 		(void) config_get(cfg, "TestPublicKeys",
 		                  &testpubkeys, sizeof testpubkeys);
@@ -16290,11 +16364,13 @@ main(int argc, char **argv)
 			}
 		}
 
+#if defined(STANDALONE)
 		if (pidfile == NULL)
 		{
 			(void) config_get(cfg, "PidFile", &pidfile,
 			                  sizeof pidfile);
 		}
+#endif /* STANDALONE */
 
 #ifdef QUERY_CACHE
 		(void) config_get(cfg, "QueryCache", &querycache,
@@ -16303,11 +16379,13 @@ main(int argc, char **argv)
 
 		(void) config_get(cfg, "UMask", &filemask, sizeof filemask);
 
+#if defined(STANDALONE)
 		if (become == NULL)
 		{
 			(void) config_get(cfg, "Userid", &become,
 			                  sizeof become);
 		}
+#endif /* STANDALONE */
 
 #ifdef POPAUTH
 		if (popdbfile == NULL)
@@ -16317,8 +16395,10 @@ main(int argc, char **argv)
 		}
 #endif /* POPAUTH */
 
+#if defined(STANDALONE)
 		(void) config_get(cfg, "ChangeRootDirectory", &chrootdir,
 		                  sizeof chrootdir);
+#endif /* STANDALONE */
 	}
 
 #ifndef SMFIF_QUARANTINE
@@ -16344,15 +16424,18 @@ main(int argc, char **argv)
 	{
 		curconf->conf_dolog = FALSE;
 		curconf->conf_sendreports = FALSE;
+#if defined(STANDALONE)
 		autorestart = FALSE;
 		dofork = FALSE;
 		become = NULL;
 		pidfile = NULL;
 		chrootdir = NULL;
+#endif /* STANDALONE */
 	}
 
 	dkimf_setmaxfd();
 
+#if defined(STANDALONE)
 	/* prepare to change user if appropriate */
 	if (become != NULL)
 	{
@@ -16516,9 +16599,11 @@ main(int argc, char **argv)
 			        progname);
 		}
 	}
+#endif /* STANDALONE */
 
 	die = FALSE;
 
+#if defined(STANDALONE)
 	if (autorestart)
 	{
 		_Bool quitloop = FALSE;
@@ -16834,6 +16919,7 @@ main(int argc, char **argv)
 			}
 		}
 	}
+#endif /* STANDALONE */
 
 	/*
 	**  Block SIGUSR1 for use of our reload thread, and SIGHUP, SIGINT
@@ -16862,6 +16948,7 @@ main(int argc, char **argv)
 		return EX_OSERR;
 	}
 
+#if defined(STANDALONE)
 	/* now enact the user change */
 	if (!autorestart && become != NULL)
 	{
@@ -16891,6 +16978,7 @@ main(int argc, char **argv)
 			}
 		}
 	}
+#endif /* STANDALONE */
 
 	/* initialize DKIM library */
 	if (!dkimf_config_setlib(curconf, &p))
@@ -16924,8 +17012,10 @@ main(int argc, char **argv)
 
 			dkimf_zapkey(curconf);
 
+#if defined(STANDALONE)
 			if (!autorestart && pidfile != NULL)
 				(void) unlink(pidfile);
+#endif /* STANDALONE */
 
 			return EX_UNAVAILABLE;
 		}
@@ -16968,8 +17058,10 @@ main(int argc, char **argv)
 
 			dkimf_zapkey(curconf);
 
+#if defined(STANDALONE)
 			if (!autorestart && pidfile != NULL)
 				(void) unlink(pidfile);
+#endif /* STANDALONE */
 
 			return EX_UNAVAILABLE;
 		}
@@ -17026,8 +17118,10 @@ main(int argc, char **argv)
 			        "%s: verify mode requires rsa-sha256 support\n",
 			        progname);
 
+#if defined(STANDALONE)
 			if (!autorestart && pidfile != NULL)
 				(void) unlink(pidfile);
+#endif /* STANDALONE */
 
 			return EX_CONFIG;
 		}
@@ -17112,8 +17206,10 @@ main(int argc, char **argv)
 
 			dkimf_zapkey(curconf);
 
+#if defined(STANDALONE)
 			if (!autorestart && pidfile != NULL)
 				(void) unlink(pidfile);
+#endif /* STANDALONE */
 
 			return EX_UNAVAILABLE;
 		}
@@ -17145,8 +17241,10 @@ main(int argc, char **argv)
 			       strerror(status));
 		}
 
+#if defined(STANDALONE)
 		if (!autorestart && pidfile != NULL)
 			(void) unlink(pidfile);
+#endif /* STANDALONE */
 
 		return EX_OSERR;
 	}
@@ -17173,8 +17271,10 @@ main(int argc, char **argv)
 	die = TRUE;
 	(void) raise(SIGUSR1);
 
+#if defined(STANDALONE)
 	if (!autorestart && pidfile != NULL)
 		(void) unlink(pidfile);
+#endif /* STANDALONE */
 
 	dkimf_crypto_free();
 

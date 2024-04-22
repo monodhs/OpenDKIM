@@ -6855,6 +6855,8 @@ dkimf_db_set_ldap_param(int param, char *str)
 	dkimf_db_ldap_param[param] = str;
 }
 
+#if defined(STANDALONE)
+
 /*
 **  DKIMF_DB_CHOWN -- set ownership and permissions on a DB
 **
@@ -6908,3 +6910,5 @@ dkimf_db_chown(DKIMF_DB db, uid_t uid)
 
 #endif /* USE_DB */
 }
+
+#endif /* STANDALONE */

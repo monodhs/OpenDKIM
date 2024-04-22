@@ -32,10 +32,12 @@ struct configdef dkimf_config[] =
 #endif /* _FFR_ATPS */
 	{ "AuthservID",			CONFIG_TYPE_STRING,	FALSE },
 	{ "AuthservIDWithJobID",	CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(STANDALONE)
 	{ "AutoRestart",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "AutoRestartCount",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "AutoRestartRate",		CONFIG_TYPE_STRING,	FALSE },
 	{ "Background",			CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* STANDALONE */
 	{ "BaseDirectory",		CONFIG_TYPE_STRING,	FALSE },
 	{ "BodyLengthDB",		CONFIG_TYPE_STRING,	FALSE },
 #ifdef USE_UNBOUND
@@ -43,7 +45,9 @@ struct configdef dkimf_config[] =
 #endif /* USE_UNBOUND*/
 	{ "Canonicalization",		CONFIG_TYPE_STRING,	FALSE },
 	{ "CaptureUnknownErrors",	CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(STANDALONE)
 	{ "ChangeRootDirectory",	CONFIG_TYPE_STRING,	FALSE },
+#endif /* STANDALONE */
 	{ "ClockDrift",			CONFIG_TYPE_INTEGER,	FALSE },
 #ifdef _FFR_CONDITIONAL
 	{ "ConditionalSignatures",	CONFIG_TYPE_STRING,	FALSE },
@@ -59,7 +63,9 @@ struct configdef dkimf_config[] =
 	{ "Domain",			CONFIG_TYPE_STRING,	FALSE },
 	{ "DomainKeysCompat",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "DontSignMailTo",		CONFIG_TYPE_STRING,	FALSE },
+#if defined(STANDALONE)
 	{ "EnableCoredumps",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* STANDALONE */
 	{ "ExemptDomains",		CONFIG_TYPE_STRING,	FALSE },
 	{ "ExternalIgnoreList",		CONFIG_TYPE_STRING,	FALSE },
 #ifdef USE_LUA
@@ -131,7 +137,9 @@ struct configdef dkimf_config[] =
 	{ "On-SignatureError",		CONFIG_TYPE_STRING,	FALSE },
 	{ "OverSignHeaders",		CONFIG_TYPE_STRING,	FALSE },
 	{ "PeerList",			CONFIG_TYPE_STRING,	FALSE },
+#if defined(STANDALONE)
 	{ "PidFile",			CONFIG_TYPE_STRING,	FALSE },
+#endif /* STANDALONE */
 #ifdef POPAUTH
 	{ "POPDBFile",			CONFIG_TYPE_STRING,	FALSE },
 #endif /* POPAUTH */
@@ -237,7 +245,9 @@ struct configdef dkimf_config[] =
 #ifdef USE_UNBOUND
 	{ "UnprotectedKey",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* USE_UNBOUND */
+#if defined(STANDALONE)
 	{ "UserID",			CONFIG_TYPE_STRING,	FALSE },
+#endif /* STANDALONE */
 #ifdef _FFR_VBR
 	{ "VBR-Certifiers",		CONFIG_TYPE_STRING,	FALSE },
 	{ "VBR-PurgeFields",		CONFIG_TYPE_BOOLEAN,	FALSE },

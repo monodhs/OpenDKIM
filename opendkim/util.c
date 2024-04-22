@@ -80,6 +80,10 @@ static const char * dsflist[] =
 	"REQUIRE_SAFE_KEYS",
 #endif /* !REQUIRE_SAFE_KEYS */
 
+#if !defined(STANDALONE)
+	"STANDALONE",
+#endif /* !STANDALONE */
+
 	NULL
 };
 

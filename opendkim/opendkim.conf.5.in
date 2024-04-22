@@ -89,12 +89,14 @@ Automatically re-start on failures.  Use with caution; if the filter
 fails instantly after it starts, this can cause a tight
 .I fork(2)
 loop.
+@STANDALONE_MANNOTICE@
 
 .TP
 .I AutoRestartCount (integer)
 Sets the maximum automatic restart count.  After this number of
 automatic restarts, the filter will give up and terminate.
 A value of 0 implies no limit; this is the default.
+@STANDALONE_MANNOTICE@
 
 .TP
 .I AutoRestartRate (string)
@@ -114,6 +116,7 @@ defines the units thus represented ("s" or "S" for seconds, the default;
 "m" or "M" for minutes; "h" or "H" for hours; "d" or "D" for days).  For
 example, a value of "10/1h" limits the restarts to 10 in one hour.  There
 is no default, meaning restart rate is not limited.
+@STANDALONE_MANNOTICE@
 
 .TP
 .I Background (Boolean)
@@ -121,6 +124,7 @@ Causes
 .I opendkim
 to fork and exits immediately, leaving the service running in the background.
 The default is "true".
+@STANDALONE_MANNOTICE@
 
 .TP
 .I BaseDirectory (string)
@@ -186,6 +190,7 @@ of the process to the one specified here prior to beginning execution.
 requires superuser access. A warning will be generated if
 .I UserID
 is not also set.
+@STANDALONE_MANNOTICE@
 
 .TP
 .I ClockDrift (integer)
@@ -263,6 +268,7 @@ to dump cores when the filter crashes for some reason.  Some modern UNIX
 systems suppress core dumps during crashes for security reasons if the
 user ID has changed during the lifetime of the process.  Currently only
 supported on Linux.
+@STANDALONE_MANNOTICE@
 
 .TP
 .I ExemptDomains (dataset)
@@ -784,6 +790,7 @@ square brackets; both forms (with and without) will be checked.
 .I PidFile (string)
 Specifies the path to a file that should be created at process start
 containing the process ID.
+@STANDALONE_MANNOTICE@
 
 .TP
 .I POPDBFile (dataset)
@@ -1323,6 +1330,7 @@ the named
 unless an alternate
 .I group
 is specified.
+@STANDALONE_MANNOTICE@
 
 .TP
 .I VBR-Certifiers (string)

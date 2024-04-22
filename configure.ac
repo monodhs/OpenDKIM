@@ -415,6 +415,9 @@ AC_DEFUN([LIB_FFR_FEATURE],
 STANDARD_FEATURE([require-safe-keys],
 	[do not examine key file permissions at all],
 	[RequireSafeKeys])
+STANDARD_FEATURE([standalone],
+	[disable features typically provided by a program manager],
+	[standalone operation features])
 
 FEATURE([popauth], [enable POP-before-SMTP support])
 
@@ -2746,7 +2749,7 @@ AC_CONFIG_FILES([	Makefile
 		libut/ut.pc libut/Makefile
 		libvbr/vbr.pc libvbr/Makefile
 		miltertest/Makefile
-		opendkim/Makefile opendkim/opendkim.8 opendkim/opendkim-genkey
+		opendkim/Makefile opendkim/opendkim.8.m4 opendkim/opendkim-genkey
 			opendkim/opendkim-genkey.8 opendkim/opendkim-genzone.8
 			opendkim/opendkim-lua.3 
 			opendkim/opendkim-testkey.8 opendkim/opendkim-stats.8
