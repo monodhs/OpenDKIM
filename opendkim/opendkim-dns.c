@@ -750,6 +750,8 @@ dkimf_unbound_setup(DKIM_LIB *lib)
 }
 #endif /* USE_UNBOUND */
 
+#if defined(PRODUCTION_TESTS)
+
 /*
 **  DKIMF_FILEDNS_QUERY -- function passed to libopendkim to handle new
 **                         requests
@@ -1027,6 +1029,8 @@ dkimf_filedns_setup(DKIM_LIB *lib, DKIMF_DB db)
 
 	return 0;
 }
+
+#endif /* PRODUCTION_TESTS */
 
 #ifdef _FFR_VBR
 # ifdef USE_UNBOUND

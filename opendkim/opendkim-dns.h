@@ -44,7 +44,9 @@ extern int dkimf_vbr_unbound_setup __P((VBR *));
 #endif /* USE_UNBOUND */
 
 extern int dkimf_filedns_free __P((struct dkimf_filedns *));
+#if defined(PRODUCTION_TESTS)
 extern int dkimf_filedns_setup __P((DKIM_LIB *, DKIMF_DB));
+#endif /* PRODUCTION_TESTS */
 
 extern int dkimf_dns_config __P((DKIM_LIB *, const char *));
 extern int dkimf_dns_setnameservers __P((DKIM_LIB *, const char *));

@@ -1,3 +1,4 @@
+include(MANPAGE_MACROS)dnl
 .TH opendkim.conf 5 "The Trusted Domain Project"
 
 .SH NAME
@@ -557,6 +558,7 @@ for all addresses.
 .I MilterDebug (integer)
 Sets the debug level to be requested from the milter library.  Currently,
 the highest meaningful value is 6.
+@PRODUCTION_TESTS_MANNOTICE@
 
 .TP
 .I Minimum (string)
@@ -592,12 +594,18 @@ indicate which mode(s) of operation are desired.  Valid modes are
 (signer) and
 .I v
 (verifier).  The default is
+@PRODUCTION_TESTS_MANIF@
 .I sv
 except in test mode (see the
+.I -t
+command line flag in the
 .I opendkim(8)
 man page)
 in which case the default is
 .I v.
+@PRODUCTION_TESTS_MANELSE@
+.I sv.
+@PRODUCTION_TESTS_MANENDIF@
 When signing mode is enabled, one of the following combinations must also
 be set:
 (a) Domain, KeyFile, Selector, no KeyTable, no SigningTable;
@@ -1217,12 +1225,19 @@ header field count does not conform to RFC5322 Section 3.6.
 
 .TP
 .I StrictTestMode (Boolean)
-Selects strict CRLF mode during testing (see the
+Selects strict CRLF mode during
+@PRODUCTION_TESTS_MANIF@
+testing (see the
 .I -t
 command line flag in the
 .I opendkim(8)
-man page); messages for which all header fields and body lines are not
+man page);
+@PRODUCTION_TESTS_MANELSE@
+testing;
+@PRODUCTION_TESTS_MANENDIF@
+messages for which all header fields and body lines are not
 CRLF-terminated are considered malformed and will produce an error.
+@PRODUCTION_TESTS_MANNOTICE@
 
 .TP
 .I SubDomains (Boolean)
@@ -1271,11 +1286,13 @@ default location, currently
 .I TestDNSData (data set)
 Provides a data set whose keys will be treated as DNS record names and
 values as TXT record contents.  Intended for use during automated testing.
+@PRODUCTION_TESTS_MANNOTICE@
 
 .TP
 .I TestPublicKeys (string)
 Names a file from which public keys should be read.  Intended for use only
 during automated testing.
+@PRODUCTION_TESTS_MANNOTICE@
 
 .TP
 .I TrustAnchorFile (string)

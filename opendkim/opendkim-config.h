@@ -113,7 +113,9 @@ struct configdef dkimf_config[] =
 	{ "MaximumSignedBytes",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "MaximumSignaturesToVerify",	CONFIG_TYPE_INTEGER,	FALSE },
 	{ "MacroList",			CONFIG_TYPE_STRING,	FALSE },
+#if defined(PRODUCTION_TESTS)
 	{ "MilterDebug",		CONFIG_TYPE_INTEGER,	FALSE },
+#endif /* PRODUCTION_TESTS */
 	{ "Minimum",			CONFIG_TYPE_STRING,	FALSE },
 	{ "MinimumKeyBits",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "MultipleSignatures",		CONFIG_TYPE_BOOLEAN,	FALSE },
@@ -230,15 +232,19 @@ struct configdef dkimf_config[] =
 	{ "StatisticsPrefix",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* _FFR_STATS */
 	{ "StrictHeaders",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(PRODUCTION_TESTS)
 	{ "StrictTestMode",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* PRODUCTION_TESTS */
 	{ "SubDomains",			CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "Syslog",			CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "SyslogFacility",		CONFIG_TYPE_STRING,	FALSE },
 	{ "SyslogName",			CONFIG_TYPE_STRING,	FALSE },
 	{ "SyslogSuccess",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "TemporaryDirectory",		CONFIG_TYPE_STRING,	FALSE },
+#if defined(PRODUCTION_TESTS)
 	{ "TestDNSData",		CONFIG_TYPE_STRING,	FALSE },
 	{ "TestPublicKeys",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* PRODUCTION_TESTS */
 	{ "TrustAnchorFile",		CONFIG_TYPE_STRING,	FALSE },
 	{ "TrustSignaturesFrom",	CONFIG_TYPE_STRING,	FALSE },
 	{ "UMask",			CONFIG_TYPE_INTEGER,	FALSE },

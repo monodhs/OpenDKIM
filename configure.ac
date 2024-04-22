@@ -418,6 +418,10 @@ STANDARD_FEATURE([require-safe-keys],
 STANDARD_FEATURE([standalone],
 	[disable features typically provided by a program manager],
 	[standalone operation features])
+STANDARD_FEATURE([production-tests],
+	[disable production tests],
+	[production tests])
+AM_CONDITIONAL([PRODUCTION_TESTS], [test x"$enable_production_tests" = x"yes"])
 
 FEATURE([popauth], [enable POP-before-SMTP support])
 
@@ -2753,7 +2757,7 @@ AC_CONFIG_FILES([	Makefile
 			opendkim/opendkim-genkey.8 opendkim/opendkim-genzone.8
 			opendkim/opendkim-lua.3 
 			opendkim/opendkim-testkey.8 opendkim/opendkim-stats.8
-			opendkim/opendkim-testmsg.8 opendkim/opendkim.conf.5
+			opendkim/opendkim-testmsg.8 opendkim/opendkim.conf.5.m4
 			opendkim/opendkim.conf.simple
 			opendkim/opendkim.conf.simple-verify
 			opendkim/opendkim-atpszone.8 opendkim/opendkim-spam.1

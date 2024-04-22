@@ -16,7 +16,9 @@ include(MANPAGE_MACROS)dnl
 @STANDALONE_MANIF@
 [\-f]
 @STANDALONE_MANENDIF@
+@PRODUCTION_TESTS_MANIF@
 [\-F time]
+@PRODUCTION_TESTS_MANENDIF@
 [\-k keyfile]
 [\-l]
 [\-L min]
@@ -26,16 +28,22 @@ include(MANPAGE_MACROS)dnl
 @STANDALONE_MANIF@
 [\-P pidfile]
 @STANDALONE_MANENDIF@
+@PRODUCTION_TESTS_MANIF@
 [\-Q]
+@PRODUCTION_TESTS_MANENDIF@
 [\-r]
 [\-s selector]
 [\-S signalg]
+@PRODUCTION_TESTS_MANIF@
 [\-t testfiles]
+@PRODUCTION_TESTS_MANENDIF@
 [\-T secs]
 @STANDALONE_MANIF@
 [\-u userid[:group]]
 @STANDALONE_MANENDIF@
+@PRODUCTION_TESTS_MANIF@
 [\-v]
+@PRODUCTION_TESTS_MANENDIF@
 [\-V]
 [\-W]
 [\-x configfile]
@@ -254,11 +262,15 @@ are desired.  Valid modes are
 (signer) and
 .I v
 (verifier).  The default is
+@PRODUCTION_TESTS_MANIF@
 .I sv
 except in test mode (see
 .I \-t
 below) in which case the default is
 .I v.
+@PRODUCTION_TESTS_MANELSE@
+.I sv.
+@PRODUCTION_TESTS_MANENDIF@
 .TP
 .I \-c canon
 Selects the canonicalization method(s) to be used when signing messages.
@@ -294,6 +306,7 @@ Normally
 forks and exits immediately, leaving the service running in the background.
 This flag suppresses that behaviour so that it runs in the foreground.
 @STANDALONE_MANENDIF@
+@PRODUCTION_TESTS_MANIF@
 .TP
 .I \-F time
 Specifies a fixed time to use when generating signatures.  Ignored unless
@@ -302,6 +315,7 @@ also used in conjunction with
 (see below).  The time must be expressed in the usual UNIX
 .I time_t
 (seconds since epoch) format.
+@PRODUCTION_TESTS_MANENDIF@
 .TP
 .I \-k keyfile
 Gives the location of a PEM-formatted private key to be used for signing
@@ -377,12 +391,14 @@ in the configuration file.
 .I \-P pidfile
 Specifies a file into which the filter should write its process ID at startup.
 @STANDALONE_MANENDIF@
+@PRODUCTION_TESTS_MANIF@
 .TP
 .I \-Q
 Query test mode.  The filter will read two lines from standard input, one
 containing a database description to be opened and one containing a string
 of the form "q/n" where "q" is the query to be performed and "n" is the
 number of fields to be retrieved.
+@PRODUCTION_TESTS_MANENDIF@
 .TP
 .I \-r
 Checks all messages for compliance with RFC5322 header count requirements.
@@ -401,7 +417,7 @@ The default is
 .I rsa-sha256
 if it is available, otherwise it will be
 .I rsa-sha1.
-
+@PRODUCTION_TESTS_MANIF@
 .TP
 .I \-t testfiles
 Evaluates (verifies) one or more RFC5322-formatted message found in
@@ -410,6 +426,7 @@ and exits.  The value of
 .I testfiles
 should be a comma-separated list of one or more filenames, one of which
 may be "-" if the message should be read from standard input.
+@PRODUCTION_TESTS_MANENDIF@
 .TP
 .I \-T secs
 Sets the DNS timeout in seconds.  A value of 0 causes an infinite wait.
@@ -427,12 +444,14 @@ unless an alternate
 .I group
 is specified.  See the FILE PERMISSIONS section for more information.
 @STANDALONE_MANENDIF@
+@PRODUCTION_TESTS_MANIF@
 .TP
 .I \-v
 Increase verbose output during test mode (see
 .I \-t
 above).  May be specified more than once to request increasing amounts of
 output.
+@PRODUCTION_TESTS_MANENDIF@
 .TP
 .I \-V
 Print the version number and supported canonicalization and signature
@@ -526,7 +545,9 @@ AutoRestartCount,
 AutoRestartRate,
 Background,
 @STANDALONE_MANENDIF@
+@PRODUCTION_TESTS_MANIF@
 MilterDebug,
+@PRODUCTION_TESTS_MANENDIF@
 @STANDALONE_MANIF@
 PidFile (\-P),
 @STANDALONE_MANENDIF@
@@ -534,8 +555,10 @@ POPDBFile,
 Quarantine (\-q),
 QueryCache,
 Socket (\-p),
+@PRODUCTION_TESTS_MANIF@
 StrictTestMode,
 TestPublicKeys,
+@PRODUCTION_TESTS_MANENDIF@
 @STANDALONE_MANIF@
 UMask,
 UserID (\-u).

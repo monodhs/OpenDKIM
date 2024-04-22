@@ -128,7 +128,9 @@
 # include "opendkim-lua.h"
 #endif /* USE_LUA */
 #include "util.h"
+#if defined(PRODUCTION_TESTS)
 #include "test.h"
+#endif /* PRODUCTION_TESTS */
 #ifdef _FFR_STATS
 # include "stats.h"
 #endif /* _FFR_STATS */
@@ -137,11 +139,18 @@
 #endif /* _FFR_REPUTATION */
 
 /* macros */
-#if defined(STANDALONE)
-#define CMDLINEOPTS	"Ab:c:d:De:fF:k:lL:no:p:P:Qrs:S:t:T:u:vVWx:X?"
-#else /* STANDALONE */
-#define CMDLINEOPTS	"b:c:d:De:F:k:lL:no:p:Qrs:S:t:T:vVWx:X?"
-#endif /* !STANDALONE */
+#define COMMON_OPTS		"b:c:d:De:k:lL:no:p:rs:S:T:VWx:X?"
+#define STANDALONE_OPTS		"AfP:u:"
+#define PRODUCTION_TESTS_OPTS	"F:Qt:v"
+#if    defined(STANDALONE) &&  defined(PRODUCTION_TESTS)
+#define CMDLINEOPTS	STANDALONE_OPTS PRODUCTION_TESTS_OPTS COMMON_OPTS
+#elif !defined(STANDALONE) &&  defined(PRODUCTION_TESTS)
+#define CMDLINEOPTS	                PRODUCTION_TESTS_OPTS COMMON_OPTS
+#elif  defined(STANDALONE) && !defined(PRODUCTION_TESTS)
+#define CMDLINEOPTS	STANDALONE_OPTS                       COMMON_OPTS
+#else /* STANDALONE, PRODUCTION_TESTS */
+#define CMDLINEOPTS	                                      COMMON_OPTS
+#endif /* !STANDALONE && !PRODUCTION_TESTS */
 
 #ifndef MIN
 # define MIN(x,y)	((x) < (y) ? (x) : (y))
@@ -339,7 +348,9 @@ struct dkimf_config
 #ifdef _FFR_SENDER_MACRO
 	char *		conf_sendermacro;	/* macro containing sender */
 #endif /* _FFR_SENDER_MACRO */
+#if defined(PRODUCTION_TESTS)
 	char *		conf_testdnsdata;	/* test DNS data */
+#endif /* PRODUCTION_TESTS */
 #ifdef _FFR_IDENTITY_HEADER
 	char *		conf_identityhdr;	/* identity header */
 	_Bool		conf_rmidentityhdr;	/* remove identity header */
@@ -395,7 +406,9 @@ struct dkimf_config
 	DKIMF_DB	conf_vbr_trusteddb;	/* trusted certifiers (DB) */
 	u_char **	conf_vbr_trusted;	/* trusted certifiers */
 #endif /* _FFR_VBR */
+#if defined(PRODUCTION_TESTS)
 	DKIMF_DB	conf_testdnsdb;		/* test TXT records */
+#endif /* PRODUCTION_TESTS */
 	DKIMF_DB	conf_bldb;		/* l= recipients (DB) */
 	DKIMF_DB	conf_domainsdb;		/* domains to sign (DB) */
 	DKIMF_DB	conf_omithdrdb;		/* headers to omit (DB) */
@@ -755,7 +768,9 @@ static void dkimf_sigreport __P((connctx, struct dkimf_config *, char *));
 _Bool dolog;					/* logging? (exported) */
 _Bool reload;					/* reload requested */
 _Bool no_i_whine;				/* noted ${i} is undefined */
+#if defined(PRODUCTION_TESTS)
 _Bool testmode;					/* test mode */
+#endif /* PRODUCTION_TESTS */
 _Bool allowdeprecated;				/* allow deprecated config values */
 #ifdef QUERY_CACHE
 _Bool querycache;				/* local query cache */
@@ -844,9 +859,11 @@ dkimf_getpriv(SMFICTX *ctx)
 {
 	assert(ctx != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_getpriv((void *) ctx);
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_getpriv(ctx);
 }
 
@@ -865,9 +882,11 @@ dkimf_setpriv(SMFICTX *ctx, void *ptr)
 {
 	assert(ctx != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_setpriv((void *) ctx, ptr);
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_setpriv(ctx, ptr);
 }
 
@@ -891,9 +910,11 @@ dkimf_insheader(SMFICTX *ctx, int idx, char *hname, char *hvalue)
 	assert(hname != NULL);
 	assert(hvalue != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_insheader(ctx, idx, hname, hvalue);
 	else
+#endif /* PRODUCTION_TESTS */
 #ifdef HAVE_SMFI_INSHEADER
 		return smfi_insheader(ctx, idx, hname, hvalue);
 #else /* HAVE_SMFI_INSHEADER */
@@ -920,9 +941,11 @@ dkimf_chgheader(SMFICTX *ctx, char *hname, int idx, char *hvalue)
 	assert(ctx != NULL);
 	assert(hname != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_chgheader(ctx, hname, idx, hvalue);
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_chgheader(ctx, hname, idx, hvalue);
 }
 
@@ -942,10 +965,14 @@ dkimf_quarantine(SMFICTX *ctx, char *reason)
 {
 	assert(ctx != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_quarantine(ctx, reason);
+#endif /* PRODUCTION_TESTS */
 #ifdef SMFIF_QUARANTINE
+#if defined(PRODUCTION_TESTS)
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_quarantine(ctx, reason);
 #endif /* SMFIF_QUARANTINE */
 }
@@ -969,9 +996,11 @@ dkimf_addheader(SMFICTX *ctx, char *hname, char *hvalue)
 	assert(hname != NULL);
 	assert(hvalue != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_addheader(ctx, hname, hvalue);
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_addheader(ctx, hname, hvalue);
 }
 
@@ -992,9 +1021,11 @@ dkimf_addrcpt(SMFICTX *ctx, char *addr)
 	assert(ctx != NULL);
 	assert(addr != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_addrcpt(ctx, addr);
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_addrcpt(ctx, addr);
 }
 
@@ -1015,9 +1046,11 @@ dkimf_delrcpt(SMFICTX *ctx, char *addr)
 	assert(ctx != NULL);
 	assert(addr != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_delrcpt(ctx, addr);
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_delrcpt(ctx, addr);
 }
 
@@ -1039,9 +1072,11 @@ dkimf_setreply(SMFICTX *ctx, char *rcode, char *xcode, char *replytxt)
 {
 	assert(ctx != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_setreply(ctx, rcode, xcode, replytxt);
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_setreply(ctx, rcode, xcode, replytxt);
 }
 
@@ -1062,9 +1097,11 @@ dkimf_getsymval(SMFICTX *ctx, char *sym)
 	assert(ctx != NULL);
 	assert(sym != NULL);
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_getsymval(ctx, sym);
 	else
+#endif /* PRODUCTION_TESTS */
 		return smfi_getsymval(ctx, sym);
 }
 
@@ -5681,6 +5718,8 @@ dkimf_lookup_inttostr(int code, struct lookup *table)
 	/* NOTREACHED */
 }
 
+#if defined(PRODUCTION_TESTS)
+
 /*
 **  DKIMF_GETDKIM -- retrieve DKIM handle in use
 **
@@ -5728,6 +5767,8 @@ dkimf_getsrlist(void *vp)
 	else
 		return NULL;
 }
+
+#endif /* PRODUCTION_TESTS */
 
 #if defined(STANDALONE)
 
@@ -5955,8 +5996,10 @@ dkimf_config_free(struct dkimf_config *conf)
 	if (conf->conf_libopendkim != NULL)
 		dkim_close(conf->conf_libopendkim);
 
+#if defined(PRODUCTION_TESTS)
 	if (conf->conf_testdnsdb != NULL)
 		dkimf_db_close(conf->conf_testdnsdb);
+#endif /* PRODUCTION_TESTS */
 
 	if (conf->conf_domainsdb != NULL)
 		dkimf_db_close(conf->conf_domainsdb);
@@ -6347,9 +6390,11 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		                  sizeof conf->conf_safekeys);
 #endif /* REQUIRE_SAFE_KEYS */
 
+#if defined(PRODUCTION_TESTS)
 		(void) config_get(data, "TestDNSData",
 		                  &conf->conf_testdnsdata,
 		                  sizeof conf->conf_testdnsdata);
+#endif /* PRODUCTION_TESTS */
 
 		(void) config_get(data, "NoHeaderB",
 		                  &conf->conf_noheaderb,
@@ -7048,7 +7093,11 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 	{
 		(void) config_get(data, "PeerList", &str, sizeof str);
 	}
+#if defined(PRODUCTION_TESTS)
 	if (str != NULL && !testmode)
+#else /* PRODUCTION_TESTS */
+	if (str != NULL)
+#endif /* !PRODUCTION_TESTS */
 	{
 		int status;
 		char *dberr = NULL;
@@ -7066,6 +7115,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		}
 	}
 
+#if defined(PRODUCTION_TESTS)
 	if (conf->conf_testdnsdata != NULL)
 	{
 		int status;
@@ -7084,6 +7134,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 			return -1;
 		}
 	}
+#endif /* PRODUCTION_TESTS */
 
 	/* internal list */
 	str = NULL;
@@ -7141,7 +7192,11 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		(void) config_get(data, "ExternalIgnoreList", &str,
 		                  sizeof str);
 	}
+#if defined(PRODUCTION_TESTS)
 	if (str != NULL && !testmode)
+#else /* PRODUCTION_TESTS */
+	if (str != NULL)
+#endif /* !PRODUCTION_TESTS */
 	{
 		int status;
 		char *dberr = NULL;
@@ -7169,7 +7224,11 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 	{
 		(void) config_get(data, "ExemptDomains", &str, sizeof str);
 	}
+#if defined(PRODUCTION_TESTS)
 	if (str != NULL && !testmode)
+#else /* PRODUCTION_TESTS */
+	if (str != NULL)
+#endif /* !PRODUCTION_TESTS */
 	{
 		int status;
 		char *dberr = NULL;
@@ -7882,8 +7941,12 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 
 	if (conf->conf_modestr == NULL)
 	{
+#if defined(PRODUCTION_TESTS)
 		conf->conf_mode = (testmode ? DKIMF_MODE_VERIFIER
 		                            : DKIMF_MODE_DEFAULT);
+#else /* PRODUCTION_TESTS */
+		conf->conf_mode = DKIMF_MODE_DEFAULT;
+#endif /* !PRODUCTION_TESTS */
 	}
 	else
 	{
@@ -8604,11 +8667,13 @@ dkimf_config_setlib(struct dkimf_config *conf, char **err)
 		                    sizeof conf->conf_minkeybits);
 	}
 
+#if defined(PRODUCTION_TESTS)
 	if (conf->conf_testdnsdb != NULL)
 	{
 		(void) dkimf_filedns_setup(lib, conf->conf_testdnsdb);
 	}
 	else
+#endif /* PRODUCTION_TESTS */
 	{
 #ifdef USE_UNBOUND
 		(void) dkimf_unbound_setup(lib);
@@ -9142,10 +9207,14 @@ dkimf_sendprogress(const void *ctx)
 
 		if (dfc->mctx_eom)
 		{
+#if defined(PRODUCTION_TESTS)
 			if (testmode)
 				(void) dkimf_test_progress((SMFICTX *) ctx);
+#endif /* PRODUCTION_TESTS */
 #ifdef HAVE_SMFI_PROGRESS
+#if defined(PRODUCTION_TESTS)
 			else
+#endif /* PRODUCTION_TESTS */
 				(void) smfi_progress((SMFICTX *) ctx);
 #endif /* HAVE_SMFI_PROGRESS */
 		}
@@ -15542,7 +15611,9 @@ usage(void)
 #if defined(STANDALONE)
 	                "\t-f          \tdon't fork-and-exit\n"
 #endif /* STANDALONE */
+#if defined(PRODUCTION_TESTS)
 	                "\t-F time     \tfixed timestamp to use when signing (test mode only)\n"
+#endif /* PRODUCTION_TESTS */
 	                "\t-k keyfile  \tlocation of secret key file\n"
 	                "\t-l          \tlog activity to system log\n"
 	                "\t-L limit    \tsignature limit requirements\n"
@@ -15552,16 +15623,22 @@ usage(void)
 			"\t-P pidfile  \tfile into which to write process ID\n"
 #endif /* STANDALONE */
 	                "\t-q          \tquarantine messages that fail to verify\n"
+#if defined(PRODUCTION_TESTS)
 		        "\t-Q          \tquery test mode\n"
+#endif /* PRODUCTION_TESTS */
 	                "\t-r          \trequire basic RFC5322 header compliance\n"
 	                "\t-s selector \tselector to use when signing\n"
 	                "\t-S signalg  \tsignature algorithm to use when signing\n"
+#if defined(PRODUCTION_TESTS)
 			"\t-t testfile \tevaluate RFC5322 message in \"testfile\"\n"
+#endif /* PRODUCTION_TESTS */
 			"\t-T timeout  \tDNS timeout (seconds)\n"
 #if defined(STANDALONE)
 	                "\t-u userid   \tchange to specified userid\n"
 #endif /* STANDALONE */
+#if defined(PRODUCTION_TESTS)
 	                "\t-v          \tincrease verbosity during testing\n"
+#endif /* PRODUCTION_TESTS */
 	                "\t-V          \tprint version number and terminate\n"
 	                "\t-W          \t\"why?!\" mode (log sign/verify decision logic)\n"
 	                "\t-x conffile \tread configuration from conffile\n",
@@ -15585,19 +15662,27 @@ main(int argc, char **argv)
 #if defined(STANDALONE)
 	_Bool dofork = TRUE;
 #endif /* STANDALONE */
+#if defined(PRODUCTION_TESTS)
 	_Bool stricttest = FALSE;
+#endif /* PRODUCTION_TESTS */
 	_Bool configonly = FALSE;
+#if defined(PRODUCTION_TESTS)
 	_Bool querytest = FALSE;
+#endif /* PRODUCTION_TESTS */
 	int c;
 	int status;
 	int n;
+#if defined(PRODUCTION_TESTS)
 	int verbose = 0;
+#endif /* PRODUCTION_TESTS */
 #if defined(STANDALONE)
 	int maxrestarts = 0;
 	int maxrestartrate_n = 0;
 #endif /* STANDALONE */
 	int filemask = -1;
+#if defined(PRODUCTION_TESTS)
 	int mdebug = 0;
+#endif /* PRODUCTION_TESTS */
 #ifdef HAVE_SMFI_VERSION
 	u_int mvmajor;
 	u_int mvminor;
@@ -15608,7 +15693,9 @@ main(int argc, char **argv)
 	gid_t gid = (gid_t) -1;
 #endif /* STANDALONE */
 	sigset_t sigset;
+#if defined(PRODUCTION_TESTS)
 	uint64_t fixedtime = (uint64_t) -1;
+#endif /* PRODUCTION_TESTS */
 #if defined(STANDALONE)
 	time_t maxrestartrate_t = 0;
 #endif /* STANDALONE */
@@ -15630,8 +15717,10 @@ main(int argc, char **argv)
 #ifdef POPAUTH
 	char *popdbfile = NULL;
 #endif /* POPAUTH */
+#if defined(PRODUCTION_TESTS)
 	char *testfile = NULL;
 	char *testpubkeys = NULL;
+#endif /* PRODUCTION_TESTS */
 	struct config *cfg = NULL;
 	char *end;
 	char argstr[MAXARGV];
@@ -15639,7 +15728,9 @@ main(int argc, char **argv)
 
 	/* initialize */
 	reload = FALSE;
+#if defined(PRODUCTION_TESTS)
 	testmode = FALSE;
+#endif /* PRODUCTION_TESTS */
 #ifdef QUERY_CACHE
 	querycache = FALSE;
 #endif /* QUERY_CACHE */
@@ -15716,6 +15807,7 @@ main(int argc, char **argv)
 			break;
 #endif /* STANDALONE */
 
+#if defined(PRODUCTION_TESTS)
 		  case 'F':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
@@ -15739,6 +15831,7 @@ main(int argc, char **argv)
 				return EX_USAGE;
 			}
 			break;
+#endif /* PRODUCTION_TESTS */
 
 		  case 'k':
 			if (optarg == NULL || *optarg == '\0')
@@ -15782,10 +15875,12 @@ main(int argc, char **argv)
 			break;
 #endif /* STANDALONE */
 
+#if defined(PRODUCTION_TESTS)
 		  case 'Q':
 			querytest = TRUE;
 			testmode = TRUE;
 			break;
+#endif /* PRODUCTION_TESTS */
 
 		  case 'r':
 			curconf->conf_reqhdrs = TRUE;
@@ -15803,12 +15898,14 @@ main(int argc, char **argv)
 			curconf->conf_signalgstr = optarg;
 			break;
 
+#if defined(PRODUCTION_TESTS)
 		  case 't':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
 			testmode = TRUE;
 			testfile = optarg;
 			break;
+#endif /* PRODUCTION_TESTS */
 
 		  case 'T':
 			if (optarg == NULL || *optarg == '\0')
@@ -15843,9 +15940,11 @@ main(int argc, char **argv)
 			break;
 #endif /* STANDALONE */
 
+#if defined(PRODUCTION_TESTS)
 		  case 'v':
 			verbose++;
 			break;
+#endif /* PRODUCTION_TESTS */
 
 		  case 'V':
 			if (!dkimf_config_setlib(curconf, &p))
@@ -15930,11 +16029,13 @@ main(int argc, char **argv)
 	if (conffile == NULL && access(DEFCONFFILE, R_OK) == 0)
 	{
 		conffile = DEFCONFFILE;
+#if defined(PRODUCTION_TESTS)
 		if (verbose > 1)
 		{
 			fprintf(stderr, "%s: using default configfile %s\n",
 				progname, DEFCONFFILE);
 		}
+#endif /* PRODUCTION_TESTS */
 	}
 
 	if (conffile != NULL)
@@ -16039,6 +16140,7 @@ main(int argc, char **argv)
 		repute_set_timeout(curconf->conf_reptimeout);
 #endif /* _FFR_REPUTATION */
 
+#if defined(PRODUCTION_TESTS)
 	if (querytest)
 	{
 		_Bool exists = FALSE;
@@ -16237,9 +16339,12 @@ main(int argc, char **argv)
 
 		return 0;
 	}
+#endif /* PRODUCTION_TESTS */
 
+#if defined(PRODUCTION_TESTS)
 	if (testmode && curconf->conf_modestr == NULL)
 		curconf->conf_mode = DKIMF_MODE_VERIFIER;
+#endif /* PRODUCTION_TESTS */
 
 	/*
 	**  Use values found in the configuration file, if any.  Note that
@@ -16346,6 +16451,7 @@ main(int argc, char **argv)
 		}
 #endif /* STANDALONE */
 
+#if defined(PRODUCTION_TESTS)
 		(void) config_get(cfg, "TestPublicKeys",
 		                  &testpubkeys, sizeof testpubkeys);
 
@@ -16353,6 +16459,7 @@ main(int argc, char **argv)
 		                  sizeof stricttest);
 
 		(void) config_get(cfg, "MilterDebug", &mdebug, sizeof mdebug);
+#endif /* PRODUCTION_TESTS */
 
 		if (!gotp)
 		{
@@ -16410,7 +16517,11 @@ main(int argc, char **argv)
 	}
 #endif /* ! SMFIF_QUARANTINE */
 
+#if defined(PRODUCTION_TESTS)
 	if (!gotp && !testmode)
+#else /* PRODUCTION_TESTS */
+	if (!gotp)
+#endif /* !PRODUCTION_TESTS */
 	{
 		fprintf(stderr, "%s: milter socket must be specified\n",
 		        progname);
@@ -16419,6 +16530,7 @@ main(int argc, char **argv)
 		return EX_CONFIG;
 	}
 
+#if defined(PRODUCTION_TESTS)
 	/* suppress a bunch of things if we're in test mode */
 	if (testmode)
 	{
@@ -16432,6 +16544,7 @@ main(int argc, char **argv)
 		chrootdir = NULL;
 #endif /* STANDALONE */
 	}
+#endif /* PRODUCTION_TESTS */
 
 	dkimf_setmaxfd();
 
@@ -16992,10 +17105,14 @@ main(int argc, char **argv)
 	if (filemask != -1)
 		(void) umask((mode_t) filemask);
 
+#if defined(PRODUCTION_TESTS)
 	if (mdebug > 0)
 		(void) smfi_setdbg(mdebug);
+#endif /* PRODUCTION_TESTS */
 
+#if defined(PRODUCTION_TESTS)
 	if (!testmode)
+#endif /* PRODUCTION_TESTS */
 	{
 		/* try to clean up the socket */
 		status = dkimf_socket_cleanup(sock);
@@ -17127,6 +17244,7 @@ main(int argc, char **argv)
 		}
 	}
 
+#if defined(PRODUCTION_TESTS)
 	/* set up for test mode if selected */
 	if (testpubkeys != NULL)
 	{
@@ -17139,12 +17257,14 @@ main(int argc, char **argv)
 		                    DKIM_OPTS_QUERYINFO,
 		                    testpubkeys, strlen(testpubkeys));
 	}
+#endif /* PRODUCTION_TESTS */
 
 	pthread_mutex_init(&conf_lock, NULL);
 #if defined(REQUIRE_SAFE_KEYS)
 	pthread_mutex_init(&pwdb_lock, NULL);
 #endif /* REQUIRE_SAFE_KEYS */
 
+#if defined(PRODUCTION_TESTS)
 	/* perform test mode */
 	if (testfile != NULL)
 	{
@@ -17153,6 +17273,7 @@ main(int argc, char **argv)
 		dkim_close(curconf->conf_libopendkim);
 		return status;
 	}
+#endif /* PRODUCTION_TESTS */
 
 	memset(argstr, '\0', sizeof argstr);
 	end = &argstr[sizeof argstr - 1];

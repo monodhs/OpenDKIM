@@ -84,6 +84,10 @@ static const char * dsflist[] =
 	"STANDALONE",
 #endif /* !STANDALONE */
 
+#if !defined(PRODUCTION_TESTS)
+	"PRODUCTION_TESTS",
+#endif /* !PRODUCTION_TESTS */
+
 	NULL
 };
 
