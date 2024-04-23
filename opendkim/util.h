@@ -21,6 +21,10 @@
 #include "build-config.h"
 #include "opendkim-db.h"
 
+#if defined(BYPASS_CRITERIA) || defined(EXTERNAL_IGNORE_LIST) || defined(LOCAL_SIGNING_CRITERIA)
+# define CHECKHOSTIP_FUNCTIONS 1
+#endif /* BYPASS_CRITERIA || EXTERNAL_IGNORE_LIST || LOCAL_SIGNING_CRITERIA */
+
 /* TYPES */
 struct dkimf_dstring;
 
@@ -39,8 +43,10 @@ struct replace
 
 /* PROTOTYPES */
 extern void dkimf_base64_encode_file __P((int, FILE *, int, int, int));
+#if defined(CHECKHOSTIP_FUNCTIONS)
 extern _Bool dkimf_checkhost __P((DKIMF_DB, char *));
 extern _Bool dkimf_checkip __P((DKIMF_DB, struct sockaddr *));
+#endif /* CHECKHOSTIP_FUNCTIONS */
 #ifdef POPAUTH
 extern _Bool dkimf_checkpopauth __P((DKIMF_DB, struct sockaddr *));
 #endif /* POPAUTH */

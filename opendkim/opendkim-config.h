@@ -64,12 +64,18 @@ struct configdef dkimf_config[] =
 	{ "Domain",			CONFIG_TYPE_STRING,	FALSE },
 #endif /* SINGLE_SIGNING */
 	{ "DomainKeysCompat",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(BYPASS_CRITERIA)
 	{ "DontSignMailTo",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* BYPASS_CRITERIA */
 #if defined(STANDALONE)
 	{ "EnableCoredumps",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #endif /* STANDALONE */
+#if defined(BYPASS_CRITERIA)
 	{ "ExemptDomains",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* BYPASS_CRITERIA */
+#if defined(EXTERNAL_IGNORE_LIST)
 	{ "ExternalIgnoreList",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* EXTERNAL_IGNORE_LIST */
 #ifdef USE_LUA
 	{ "FinalPolicyScript",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* USE_LUA */
@@ -85,7 +91,9 @@ struct configdef dkimf_config[] =
 #endif /* _FFR_IDENTITY_HEADER */
 	{ "IgnoreMalformedMail",	CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "Include",			CONFIG_TYPE_INCLUDE,	FALSE },
+#if defined(LOCAL_SIGNING_CRITERIA)
 	{ "InternalHosts",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* LOCAL_SIGNING_CRITERIA */
 	{ "KeepAuthResults",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "KeepTemporaryFiles",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #if defined(SINGLE_SIGNING)
@@ -115,10 +123,16 @@ struct configdef dkimf_config[] =
 #ifdef _FFR_LUA_ONLY_SIGNING
 	{ "LuaOnlySigning",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #endif /* _FFR_LUA_ONLY_SIGNING */
+#if defined(STRICT_MODE)
+	{ "MalformedAddressReplyText",	CONFIG_TYPE_STRING,	FALSE },
+	{ "MalformedMessageReplyText",	CONFIG_TYPE_STRING,	FALSE },
+#endif /* STRICT_MODE */
 	{ "MaximumHeaders",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "MaximumSignedBytes",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "MaximumSignaturesToVerify",	CONFIG_TYPE_INTEGER,	FALSE },
+#if defined(LOCAL_SIGNING_CRITERIA)
 	{ "MacroList",			CONFIG_TYPE_STRING,	FALSE },
+#endif /* LOCAL_SIGNING_CRITERIA */
 #if defined(PRODUCTION_TESTS)
 	{ "MilterDebug",		CONFIG_TYPE_INTEGER,	FALSE },
 #endif /* PRODUCTION_TESTS */
@@ -126,25 +140,40 @@ struct configdef dkimf_config[] =
 	{ "MinimumKeyBits",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "MultipleSignatures",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "Mode",			CONFIG_TYPE_STRING,	FALSE },
+#if defined(LOCAL_SIGNING_CRITERIA)
 	{ "MTA",			CONFIG_TYPE_STRING,	FALSE },
+#endif /* LOCAL_SIGNING_CRITERIA */
 	{ "MTACommand",			CONFIG_TYPE_STRING,	FALSE },
 	{ "MustBeSigned",		CONFIG_TYPE_STRING,	FALSE },
 	{ "Nameservers",		CONFIG_TYPE_STRING,	FALSE },
 	{ "NoHeaderB",			CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(STRICT_MODE)
+	{ "NoSenderReplyText",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* STRICT_MODE */
 	{ "OmitHeaders",		CONFIG_TYPE_STRING,	FALSE },
 	{ "On-BadSignature",		CONFIG_TYPE_STRING,	FALSE },
 	{ "On-Default",			CONFIG_TYPE_STRING,	FALSE },
 	{ "On-DNSError",		CONFIG_TYPE_STRING,	FALSE },
 	{ "On-InternalError",		CONFIG_TYPE_STRING,	FALSE },
 	{ "On-KeyNotFound",		CONFIG_TYPE_STRING,	FALSE },
+#if defined(STRICT_MODE)
+	{ "On-MalformedAddress",	CONFIG_TYPE_STRING,	FALSE },
+	{ "On-MalformedMessage",	CONFIG_TYPE_STRING,	FALSE },
+	{ "On-NoSender",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* STRICT_MODE */
 	{ "On-NoSignature",		CONFIG_TYPE_STRING,	FALSE },
 #ifdef _FFR_REPUTATION
 	{ "On-ReputationError",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* _FFR_REPUTATION */
 	{ "On-Security",		CONFIG_TYPE_STRING,	FALSE },
+#if defined(STRICT_MODE)
+	{ "On-ServiceException",	CONFIG_TYPE_STRING,	FALSE },
+#endif /* STRICT_MODE */
 	{ "On-SignatureError",		CONFIG_TYPE_STRING,	FALSE },
 	{ "OverSignHeaders",		CONFIG_TYPE_STRING,	FALSE },
+#if defined(BYPASS_CRITERIA)
 	{ "PeerList",			CONFIG_TYPE_STRING,	FALSE },
+#endif /* BYPASS_CRITERIA */
 #if defined(STANDALONE)
 	{ "PidFile",			CONFIG_TYPE_STRING,	FALSE },
 #endif /* STANDALONE */
@@ -214,6 +243,9 @@ struct configdef dkimf_config[] =
 	{ "SenderMacro",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* _FFR_SENDER_MACRO */
 	{ "SendReports",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(STRICT_MODE)
+	{ "ServiceExceptionReplyText",	CONFIG_TYPE_STRING,	FALSE },
+#endif /* STRICT_MODE */
 #ifdef USE_LUA
 	{ "SetupPolicyScript",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* USE_LUA */

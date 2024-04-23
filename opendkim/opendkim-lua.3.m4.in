@@ -119,20 +119,33 @@ Returns a handle for the requested database that can be used in later
 queries.  The value of
 .I db
 should be one of
+@LOCAL_SIGNING_CRITERIA_MANIF@
 .I DB_MTAS
 (database of MTA names whose mail should be signed),
 .I DB_MACROS
 (database of MTA macro checks to be done when determining signing),
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
 @SINGLE_SIGNING_MANIF@
 .I DB_DOMAINS
 (database of domains to be signed),
 @SINGLE_SIGNING_MANENDIF@
+@RESIGN_MANIF@
+.I DB_RESIGNTO
+(database of recipients whose mail should be re-signed),
+@RESIGN_MANENDIF@
 .I DB_SIGNINGTABLE
+@BYPASS_CRITERIA_MANIF@
 (database of signing table entries),
 .I DB_THIRDPARTY
 (database of third party signatures to be trusted) and
 .I DB_DONTSIGNTO
-(database of recipients whose mail should not be signed).  If the requested
+(database of recipients whose mail should not be signed).
+@BYPASS_CRITERIA_MANELSE@
+(database of signing table entries) and
+.I DB_THIRDPARTY
+(database of third party signatures to be trusted).
+@BYPASS_CRITERIA_MANENDIF@
+If the requested
 database is not set in the current configuration file, a Lua "nil" is
 returned.
 .TP
@@ -190,10 +203,12 @@ references an out-of-range value, the Lua constant "nil" is returned.
 Returns the envelope recipients for the message represented by
 .I ctx
 in a single Lua array.
+@LOCAL_SIGNING_CRITERIA_MANIF@
 .TP
 .B odkim.internal_ip(ctx)
 Returns 1 if the SMTP client is coming from an internal IP address, and 0
 otherwise.
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
 .TP
 .B odkim.log(ctx, log)
 Logs the string
@@ -225,10 +240,6 @@ modified.  This can be used to anticipate how an intermediate mail transfer
 agent might alter the message, thus correcting an avoidable signature
 invalidation.
 .TP
-.B odkim.resign(ctx)
-Arranges that the arriving message will be verified and then re-signed in
-a single operation.  Returns 1 on success or the Lua constant "nil" on failure.
-.TP
 .B odkim.set_result(ctx, result)
 Arranges to have the MTA return a specific result code in response
 to the message represented by
@@ -250,14 +261,31 @@ message disposition; the MTA will be told immediately to take the specified
 action, and no further filter processing will occur.
 .TP
 @SINGLE_SIGNING_MANIF@
+@RESIGN_MANIF@
+.B odkim.sign(ctx[, keyname, resign[, signer[, signlen]]])
+@RESIGN_MANELSE@
 .B odkim.sign(ctx[, keyname[, signer[, signlen]]])
+@RESIGN_MANENDIF@
 @SINGLE_SIGNING_MANELSE@
+@RESIGN_MANIF@
+.B odkim.sign(ctx, keyname, resign[, signer[, signlen]])
+@RESIGN_MANELSE@
 .B odkim.sign(ctx, keyname[, signer[, signlen]])
+@RESIGN_MANENDIF@
 @SINGLE_SIGNING_MANENDIF@
 Requests that the filter sign the message represented by
 .I ctx
 using the specified
 .I keyname.
+@RESIGN_MANIF@
+The boolean
+.I resign
+requests that the message be first subjected to DKIM signature verification,
+after which the result of this verification is to be signed;
+a value of
+.I true
+implies verifying mode.
+@RESIGN_MANENDIF@
 The key name will be translated into an actual domain, selector and private
 key via a query to the KeyTable (see the
 .I opendkim.conf(5)
@@ -265,11 +293,25 @@ page for details).
 @SINGLE_SIGNING_MANIF@
 The
 .I keyname
+@RESIGN_MANIF@
+and
+.I resign
+@RESIGN_MANENDIF@
 may be omitted if the KeyTable is not defined, meaning the single signing
 domain, selector and key should be used to sign.
 @SINGLE_SIGNING_MANENDIF@
 Returns 1 on success
-and 0 on failure.  If a
+and 0 on
+@STRICT_MODE_MANIF@
+failure or if not operating in signing
+@RESIGN_MANIF@
+or verifying
+@RESIGN_MANENDIF@
+mode.
+@STRICT_MODE_MANELSE@
+failure.
+@STRICT_MODE_MANENDIF@
+If a
 .I signer
 is specified, the string there will be included in the generated signature's
 "i=" tag.  If a
@@ -284,7 +326,12 @@ message had the specified
 in the message's From: field.  The
 .I multi
 parameter, if "true" (default is "false"), allows the application of multiple
-signatures.  Returns the number of signatures applied, which may be zero.
+signatures.  Returns the number of signatures applied, which may be
+@STRICT_MODE_MANIF@
+zero, in particular if not operating in signing mode.
+@STRICT_MODE_MANELSE@
+zero.
+@STRICT_MODE_MANENDIF@
 .TP
 .B odkim.spam(ctx)
 Tags the message as spam, for use in developing reputation about domains
@@ -295,12 +342,6 @@ that signed the message.  Returns nothing.
 Requests that all signatures added to the message represented by
 .I ctx
 include "l=" (body length) tags.  Always returns the Lua constant "nil".
-.TP
-.B odkim.verify(ctx)
-Requests that the message represented by
-.I ctx
-be subjected to DKIM signature verification.  Returns the Lua constant
-"nil" on success, or an error string on failure.
 .TP
 .B odkim.xtag(ctx, tag, value)
 Requests that all signatures added to the message represented by
@@ -326,7 +367,9 @@ descriptions can be found above:
 .B odkim.get_mtasymbol,
 .B odkim.get_rcpt,
 .B odkim.get_rcptarray,
+@LOCAL_SIGNING_CRITERIA_MANIF@
 .B odkim.internal_ip,
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
 .B odkim.log,
 .B odkim.rcpt_count,
 and
@@ -401,7 +444,9 @@ descriptions can be found above:
 .B odkim.get_sigarray,
 .B odkim.get_sigcount,
 .B odkim.get_sighandle,
+@LOCAL_SIGNING_CRITERIA_MANIF@
 .B odkim.internal_ip,
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
 .B odkim.log,
 .B odkim.parse_field,
 .B odkim.rcpt_count,
@@ -442,7 +487,9 @@ descriptions can be found above:
 .B odkim.get_sigarray,
 .B odkim.get_sigcount,
 .B odkim.get_sighandle,
+@LOCAL_SIGNING_CRITERIA_MANIF@
 .B odkim.internal_ip,
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
 .B odkim.log,
 .B odkim.parse_field,
 .B odkim.rcpt_count,

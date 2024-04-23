@@ -293,8 +293,12 @@ headers and the second to the body.
 @SINGLE_SIGNING_MANIF@
 .TP
 .I \-d dataset
-A set of domains whose mail should be signed by this filter.  Mail from
-other domains will be verified rather than being signed.
+A set of domains whose mail should be signed by this
+@STRICT_MODE_MANIF@
+filter if signing mode is enabled.
+@STRICT_MODE_MANELSE@
+filter.  Mail from other domains will be verified rather than being signed.
+@STRICT_MODE_MANENDIF@
 .TP
 .I \-D
 Sign subdomains of those listed by the
@@ -502,42 +506,86 @@ results, and it will not be possible to start the filter.  Use of this flag is
 NOT RECOMMENDED; it could effectively hide a major configuration change with serious
 security implications.
 .SH OPERATION
+@STRICT_MODE_MANIF@
+.B opendkim
+can operate as a signer, a verifier, or a combination thereof.
+Depending on which of these
+.I modes of operation
+is in effect at the time a message arrives, it will either
+be signed,
+@RESIGN_MANIF@
+verified, and possibly re-signed, if conforming to the re-signing criteria,
+@RESIGN_MANELSE@
+verified,
+@RESIGN_MANENDIF@
+or trigger a service exception, as explained in the documentation
+to the
+.I Mode
+and
+.I On-ServiceException
+configuration parameters.
+
+Signing is subject to the signing criteria,
+@STRICT_MODE_MANELSE@
 A message will be verified unless it conforms to the signing criteria,
-which are: (1) the domain on the From: address (if present) must be listed
+@STRICT_MODE_MANENDIF@
+@LOCAL_SIGNING_CRITERIA_MANIF@
+which are: (1)
+@LOCAL_SIGNING_CRITERIA_MANELSE@
+which state that
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
+the domain on the From: address (if present) must be listed
 @SINGLE_SIGNING_MANIF@
 by the
 .I \-d
 command line switch or the
 .I Domain
-configuration file setting,
 @SINGLE_SIGNING_MANELSE@
 in the dataset referenced by the
 .I SigningTable
-configuration file setting,
 @SINGLE_SIGNING_MANENDIF@
+configuration
+@LOCAL_SIGNING_CRITERIA_MANIF@
+parameter,
 and (2) (a) the client connecting to the MTA must
 have authenticated, or (b) the client connecting to the MTA must be listed in
 the file referenced by the
 .I InternalHosts
-configuration file setting (or be in the default list for that option), or (c)
+configuration parameter (or be in the default list for that option), or (c)
 the client must be connected to a daemon port named by the
 .I MTAs
-configuration file setting, or (d) the MTA must have set one or more macros
+configuration parameter, or (d) the MTA must have set one or more macros
 matching the criteria set by the
 .I MacroList
-configuration file setting.
+configuration parameter.
 
 For (a) above, the test is whether or not the MTA macro "{auth_type}" is set
 and contains any non-empty value.  This means the MTA must pass the value of
 that macro to the filter before or during the end-of-header (EOH) phase
 in order for its value to be tested.  Check your MTA's configuration
 documentation for details.
+@LOCAL_SIGNING_CRITERIA_MANELSE@
+parameter.
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
 
-For (1) above, other header fields may be selected using the SenderHeaders
-configuration file setting.  See
+@LOCAL_SIGNING_CRITERIA_MANIF@
+For (1) above,
+@LOCAL_SIGNING_CRITERIA_MANELSE@
+Instead of the From: header field,
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
+other header fields may be selected using the SenderHeaders
+configuration parameter.  See
 .I opendkim.conf(5)
 for more information.
 
+@RESIGN_MANIF@
+In order for verifying followed by re-signing to take place,
+at least one of the recipients of the message must be listed
+in the dataset referenced by the
+.I ResignMailTo
+configuration parameter.
+
+@RESIGN_MANENDIF@
 When signing a message, a
 .I DKIM-Signature:
 header will be prepended to the message.  The signature is computed using
@@ -553,6 +601,15 @@ public key advertised by the sender's nameserver.  The value of this header
 can be used by mail user agents to sort or discard messages that were not
 signed or could not be verified.
 
+@RESIGN_MANIF@
+When re-signing in addition to verifying a message, both an
+.I Authentication-Results:
+header and a
+.I DKIM-Signature:
+header will be prepended to the message, the former being covered by the
+latter's signature.
+
+@RESIGN_MANENDIF@
 Upon receiving SIGUSR1, if the filter was started with a configuration
 file, it will be re-read and the new values used.  Note that any
 command line overrides provided at startup time will be lost when this is
@@ -570,7 +627,9 @@ MilterDebug,
 @STANDALONE_MANIF@
 PidFile (\-P),
 @STANDALONE_MANENDIF@
+@POPAUTH_MANIF@
 POPDBFile,
+@POPAUTH_MANENDIF@
 Quarantine (\-q),
 QueryCache,
 Socket (\-p),
@@ -588,16 +647,37 @@ The filter does not automatically check the configuration
 file for changes and reload.
 .SH MTA MACROS
 .B opendkim
-makes use of three MTA-provided macros, plus any demanded by configuration.
-The basic three are: "i" (the envelope ID, also known as the job ID or the
-queue ID), which is used for logging; "daemon_name" (the symbolic name given
+makes use of
+@LOCAL_SIGNING_CRITERIA_MANIF@
+four MTA-provided macros, plus any demanded by configuration.
+The basic four
+@LOCAL_SIGNING_CRITERIA_MANELSE@
+two MTA-provided macros, which
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
+are:
+"j" (the MTA's hostname), which is used for identification and reporting;
+@LOCAL_SIGNING_CRITERIA_MANIF@
+@LOCAL_SIGNING_CRITERIA_MANELSE@
+and
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
+"i" (the envelope ID, also known as the job ID or the
+queue ID), which is used for
+@LOCAL_SIGNING_CRITERIA_MANIF@
+logging; "daemon_name" (the symbolic name given
 to the MTA instance that accepted the connection), which is used when
 performing tests against any "MTAs" setting used; and "auth_type", which is
 used to determine whether or not the SMTP client authenticated to the MTA.
+@LOCAL_SIGNING_CRITERIA_MANELSE@
+logging.
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
 If the MTA does not provide them to
 .B opendkim
-then it is not able to apply their corresponding tests or do useful logging.
-Consult your MTA documentation to determine how to adjust your its
+then it is not able to
+@LOCAL_SIGNING_CRITERIA_MANIF@
+apply their corresponding tests or
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
+do useful reporting and logging.
+Consult your MTA documentation to determine how to adjust its
 configuration if some or all of these are not available.
 .SH FILE PERMISSIONS
 @STANDALONE_MANIF@

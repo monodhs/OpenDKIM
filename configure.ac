@@ -330,13 +330,13 @@ AC_DEFUN([TR_UP], [m4_translit([AS_TR_SH([$1])], [a-z], [A-Z])])
 AC_DEFUN([TR_US], [m4_translit([AS_TR_SH([$1])], [-+.], [___])])
 
 AC_DEFUN([MAN_ENABLED],
-         [AC_SUBST($1[_MANIF],    "manpage_divert(0)manpage_dnl")
-          AC_SUBST($1[_MANELSE],  "manpage_divert(-1)manpage_dnl")
-          AC_SUBST($1[_MANENDIF], "manpage_divert(0)manpage_dnl")])
+         [AC_SUBST($1[_MANIF],    "manpage_include()manpage_dnl")
+          AC_SUBST($1[_MANELSE],  "manpage_else()manpage_dnl")
+          AC_SUBST($1[_MANENDIF], "manpage_end()manpage_dnl")])
 AC_DEFUN([MAN_DISABLED],
-         [AC_SUBST($1[_MANIF],    "manpage_divert(-1)manpage_dnl")
-          AC_SUBST($1[_MANELSE],  "manpage_divert(0)manpage_dnl")
-          AC_SUBST($1[_MANENDIF], "manpage_divert(0)manpage_dnl")])
+         [AC_SUBST($1[_MANIF],    "manpage_exclude()manpage_dnl")
+          AC_SUBST($1[_MANELSE],  "manpage_else()manpage_dnl")
+          AC_SUBST($1[_MANENDIF], "manpage_end()manpage_dnl")])
 
 AC_DEFUN([STANDARD_FEATURE],
          [notincluded="(Not enabled for this installation.)"
@@ -425,8 +425,40 @@ AM_CONDITIONAL([PRODUCTION_TESTS], [test x"$enable_production_tests" = x"yes"])
 STANDARD_FEATURE([single-signing],
 	[disable features using the single-signing parameters for signing],
 	[single-signing features])
+STANDARD_FEATURE([local-signing-criteria],
+	[disable the application of signing criteria based on the identity of
+or the properties of the connection with the SMTP or Milter clients],
+	[local signing criteria])
+STANDARD_FEATURE([bypass-criteria],
+	[disable the application of criteria that allow a message to
+completely bypass the DKIM services],
+	[DKIM service bypass criteria])
 
 FEATURE([popauth], [enable POP-before-SMTP support])
+
+extrinsic_signing_criteria="no"
+AS_IF([test x"$enable_]TR_US(local-signing-criteria)[" = x"yes" -o \
+            x"$enable_]TR_US(popauth)[" = x"yes"],
+	[AC_DEFINE([EXTRINSIC_SIGNING_CRITERIA], 1,
+	           [local-signing-criteria or popauth enabled])
+	 extrinsic_signing_criteria="yes"])
+
+notincluded="(Not enabled for this installation.)"
+AS_IF([test x"$enable_]TR_US(single-signing)[" = x"yes" -a \
+            x"$extrinsic_signing_criteria" = x"yes"],
+	[AC_DEFINE([EXTERNAL_IGNORE_LIST], 1, [enable ExternalIgnoreList])
+	 AC_SUBST([EXTERNAL_IGNORE_LIST][_MANNOTICE], "")],
+	[AC_SUBST([EXTERNAL_IGNORE_LIST][_MANNOTICE], $notincluded)])
+AS_IF([test x"$enable_]TR_US(bypass-criteria)[" != x"yes"],
+	[MAN_ENABLED([STRICT_MODE])
+	 AC_DEFINE([STRICT_MODE], 1, [enable strict operating mode])
+	 AC_SUBST([STRICT_MODE][_MANNOTICE], "")],
+	[MAN_DISABLED([STRICT_MODE])
+	 AC_SUBST([STRICT_MODE][_MANNOTICE], $notincluded)])
+
+m4_define([dfltsmtprtxt], ["Service denied"])
+AC_DEFINE([DEFAULT_SMTP_REPLY_TEXT], dfltsmtprtxt, [Keep autoheader(1) happy.])
+AC_SUBST([DEFAULT_SMTP_REPLY_TEXT],  dfltsmtprtxt)
 
 FFR_FEATURE([atps], [experimental Authorized Third Party Signers checks])
 LIB_FFR_FEATURE([atps], [experimental Authorized Third Party Signers checks])

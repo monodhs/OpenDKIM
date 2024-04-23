@@ -70,10 +70,17 @@
 #define	DB_DOMAINS	1
 #endif /* SINGLE_SIGNING */
 #define DB_THIRDPARTY	2
+#if defined(BYPASS_CRITERIA)
 #define	DB_DONTSIGNTO	3
+#endif /* BYPASS_CRITERIA */
+#if defined(LOCAL_SIGNING_CRITERIA)
 #define	DB_MTAS		4
 #define	DB_MACROS	5
+#endif /* LOCAL_SIGNING_CRITERIA */
 #define	DB_SIGNINGTABLE	6
+#if defined(_FFR_RESIGN)
+#define	DB_RESIGNTO	51
+#endif /* _FFR_RESIGN */
 
 #define AUTHRESULTSHDR	"Authentication-Results"
 #define ORCPTHEADER	"Original-Recipient"
@@ -200,7 +207,6 @@ extern int dkimf_xs_rcpt __P((lua_State *));
 extern int dkimf_xs_rcptarray __P((lua_State *));
 extern int dkimf_xs_rcptcount __P((lua_State *));
 extern int dkimf_xs_replaceheader __P((lua_State *));
-extern int dkimf_xs_resign __P((lua_State *));
 extern int dkimf_xs_requestsig __P((lua_State *));
 extern int dkimf_xs_setpartial __P((lua_State *));
 extern int dkimf_xs_setreply __P((lua_State *));
@@ -215,7 +221,6 @@ extern int dkimf_xs_spam __P((lua_State *));
 #  ifdef _FFR_STATSEXT
 extern int dkimf_xs_statsext __P((lua_State *));
 #  endif /* _FFR_STATSEXT */
-extern int dkimf_xs_verify __P((lua_State *));
 extern int dkimf_xs_xtag __P((lua_State *));
 # endif /* DKIMF_LUA_PROTOTYPES */
 #endif /* USE_LUA */

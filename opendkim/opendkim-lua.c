@@ -55,11 +55,12 @@ static const luaL_Reg dkimf_lua_lib_setup[] =
 	{ "get_mtasymbol",	dkimf_xs_getsymval	},
 	{ "get_rcpt",		dkimf_xs_rcpt		},
 	{ "get_rcptarray",	dkimf_xs_rcptarray	},
+#if defined(LOCAL_SIGNING_CRITERIA)
 	{ "internal_ip",	dkimf_xs_internalip	},
+#endif /* LOCAL_SIGNING_CRITERIA */
 	{ "log",		dkimf_xs_log		},
 	{ "rcpt_count",		dkimf_xs_rcptcount	},
 	{ "replace_header",	dkimf_xs_replaceheader	},
-	{ "resign",		dkimf_xs_resign		},
 	{ "set_result",		dkimf_xs_setresult	},
 	{ "sign",		dkimf_xs_requestsig	},
 	{ "signfor",		dkimf_xs_signfor	},
@@ -67,7 +68,6 @@ static const luaL_Reg dkimf_lua_lib_setup[] =
 	{ "spam",		dkimf_xs_spam		},
 #endif /* _FFR_REPUTATION */
 	{ "use_ltag",		dkimf_xs_setpartial	},
-	{ "verify",		dkimf_xs_verify		},
 	{ "xtag",		dkimf_xs_xtag		},
 	{ NULL,			NULL			}
 };
@@ -88,7 +88,9 @@ static const luaL_Reg dkimf_lua_lib_screen[] =
 	{ "get_sigarray",	dkimf_xs_getsigarray	},
 	{ "get_sigcount",	dkimf_xs_getsigcount	},
 	{ "get_sighandle",	dkimf_xs_getsighandle	},
+#if defined(LOCAL_SIGNING_CRITERIA)
 	{ "internal_ip",	dkimf_xs_internalip	},
+#endif /* LOCAL_SIGNING_CRITERIA */
 	{ "log",		dkimf_xs_log		},
 	{ "parse_field",	dkimf_xs_parsefield	},
 	{ "rcpt_count",		dkimf_xs_rcptcount	},
@@ -113,7 +115,9 @@ static const luaL_Reg dkimf_lua_lib_stats[] =
 	{ "get_sigarray",	dkimf_xs_getsigarray	},
 	{ "get_sigcount",	dkimf_xs_getsigcount	},
 	{ "get_sighandle",	dkimf_xs_getsighandle	},
+#if defined(LOCAL_SIGNING_CRITERIA)
 	{ "internal_ip",	dkimf_xs_internalip	},
+#endif /* LOCAL_SIGNING_CRITERIA */
 	{ "log",		dkimf_xs_log		},
 	{ "parse_field",	dkimf_xs_parsefield	},
 #  ifdef _FFR_RBL
@@ -151,7 +155,9 @@ static const luaL_Reg dkimf_lua_lib_final[] =
 	{ "get_sigarray",	dkimf_xs_getsigarray	},
 	{ "get_sigcount",	dkimf_xs_getsigcount	},
 	{ "get_sighandle",	dkimf_xs_getsighandle	},
+#if defined(LOCAL_SIGNING_CRITERIA)
 	{ "internal_ip",	dkimf_xs_internalip	},
+#endif /* LOCAL_SIGNING_CRITERIA */
 	{ "log",		dkimf_xs_log		},
 	{ "quarantine",		dkimf_xs_quarantine	},
 	{ "parse_field",	dkimf_xs_parsefield	},
@@ -508,14 +514,22 @@ dkimf_lua_setup_hook(void *ctx, const char *script, size_t scriptlen,
 #endif /* SINGLE_SIGNING */
 	lua_pushnumber(l, DB_THIRDPARTY);
 	lua_setglobal(l, "DB_THIRDPARTY");
+#if defined(BYPASS_CRITERIA)
 	lua_pushnumber(l, DB_DONTSIGNTO);
 	lua_setglobal(l, "DB_DONTSIGNTO");
+#endif /* BYPASS_CRITERIA */
+#if defined(LOCAL_SIGNING_CRITERIA)
 	lua_pushnumber(l, DB_MTAS);
 	lua_setglobal(l, "DB_MTAS");
 	lua_pushnumber(l, DB_MACROS);
 	lua_setglobal(l, "DB_MACROS");
+#endif /* LOCAL_SIGNING_CRITERIA */
 	lua_pushnumber(l, DB_SIGNINGTABLE);
 	lua_setglobal(l, "DB_SIGNINGTABLE");
+#if defined(_FFR_RESIGN)
+	lua_pushnumber(l, DB_RESIGNTO);
+	lua_setglobal(l, "DB_RESIGNTO");
+#endif /* _FFR_RESIGN */
 
 	/* set result code */
 	lua_pushnumber(l, SMFIS_TEMPFAIL);
@@ -669,14 +683,22 @@ dkimf_lua_screen_hook(void *ctx, const char *script, size_t scriptlen,
 #endif /* SINGLE_SIGNING */
 	lua_pushnumber(l, DB_THIRDPARTY);
 	lua_setglobal(l, "DB_THIRDPARTY");
+#if defined(BYPASS_CRITERIA)
 	lua_pushnumber(l, DB_DONTSIGNTO);
 	lua_setglobal(l, "DB_DONTSIGNTO");
+#endif /* BYPASS_CRITERIA */
+#if defined(LOCAL_SIGNING_CRITERIA)
 	lua_pushnumber(l, DB_MTAS);
 	lua_setglobal(l, "DB_MTAS");
 	lua_pushnumber(l, DB_MACROS);
 	lua_setglobal(l, "DB_MACROS");
+#endif /* LOCAL_SIGNING_CRITERIA */
 	lua_pushnumber(l, DB_SIGNINGTABLE);
 	lua_setglobal(l, "DB_SIGNINGTABLE");
+#if defined(_FFR_RESIGN)
+	lua_pushnumber(l, DB_RESIGNTO);
+	lua_setglobal(l, "DB_RESIGNTO");
+#endif /* _FFR_RESIGN */
 
 	/* milter context */
 	lua_pushlightuserdata(l, ctx);

@@ -47,7 +47,7 @@ signature, or multiple signatures.
         <a href="dkim_sign.html"><tt>dkim_sign()</tt></a>.  It must not
 	have been used to process any message data (i.e., no prior calls to
 	<a href="dkim_header.html"><tt>dkim_header()</tt></a> or
-	<a href="dkim_eoh.html"><tt>dkim_eoh()</tt></a>.
+	<a href="dkim_eoh.html"><tt>dkim_eoh()</tt></a>).
 	</td></tr>
     <tr valign="top"><td>eh</td>
 	<td>Message-specific handle, returned by
@@ -93,14 +93,15 @@ signature, or multiple signatures.
 <td>
 <ul>
 <li>Once the binding is made, passing <tt>eh</tt> to
-    <a href="dkim_free.html"><tt>dkim_free()</tt> will fail until <tt>sh</tt>
+    <a href="dkim_free.html"><tt>dkim_free()</tt></a> will fail until <tt>sh</tt>
     has been freed
 <li>Multiple signing handles may be bound to a common verifying handle
 <li><tt>eh</tt> should be passed to
-    <a href="dkim_eom.html"><tt>dkim_eom()</tt> before <tt>sh</tt> is, after
+    <a href="dkim_eom.html"><tt>dkim_eom()</tt></a> before <tt>sh</tt> is, after
     which the new signature can be extracted from <tt>sh</tt>; passing
-    <tt>sh</tt> to <tt>dkim_eom()</tt> before doing so with <tt>eh</tt>
-    will cause that function to return a status of <tt>DKIM_STAT_INVALID</tt>
+    <tt>sh</tt> to <a href="dkim_eom.html"><tt>dkim_eom()</tt></a> before doing
+    so with <tt>eh</tt> will cause that function to return a status of
+    <tt>DKIM_STAT_INVALID</tt>
 </ul>
 </td>
 </tr>

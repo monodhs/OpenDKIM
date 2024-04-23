@@ -92,6 +92,14 @@ static const char * dsflist[] =
 	"SINGLE_SIGNING",
 #endif /* !SINGLE_SIGNING */
 
+#if !defined(LOCAL_SIGNING_CRITERIA)
+	"LOCAL_SIGNING_CRITERIA",
+#endif /* !LOCAL_SIGNING_CRITERIA */
+
+#if !defined(BYPASS_CRITERIA)
+	"BYPASS_CRITERIA",
+#endif /* !BYPASS_CRITERIA */
+
 	NULL
 };
 
@@ -391,6 +399,8 @@ dkimf_lowercase(u_char *str)
 			*p = tolower(*p);
 	}
 }
+
+#if defined(CHECKHOSTIP_FUNCTIONS)
 
 /*
 **  DKIMF_CHECKHOST -- check the peerlist for a host and its wildcards
@@ -727,6 +737,8 @@ dkimf_checkip(DKIMF_DB db, struct sockaddr *ip)
 
 	return FALSE;
 }
+
+#endif /* CHECKHOSTIP_FUNCTIONS */
 
 #ifdef POPAUTH
 /*

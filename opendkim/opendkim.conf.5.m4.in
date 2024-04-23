@@ -48,6 +48,36 @@ Unless otherwise stated, Boolean values default to "false", integer values
 default to 0, and string and dataset values default to being undefined.
 
 .SH PARAMETERS
+dnl
+define(<actionparam>,
+<.TP
+.I On-<$1> (string)
+Selects the action to be taken $2.
+Possible values are the same as those for
+.I On-BadSignature.
+The default is
+.I $3.
+See the
+.I <$1>ReplyText
+parameter for how to customize the text in the SMTP reply that the MTA
+responds with if
+. I reject
+or
+. I tempfail
+are in effect.>)dnl
+dnl
+define(<replytextparam>,
+<.TP
+.I <$1>ReplyText (string)
+Specifies the text in the single-line SMTP reply that the MTA shall
+respond with if
+.I On-<$1>
+is set to one of the
+.I reject
+or
+.I tempfail
+values.  $2  The default is "$3".>)dnl
+dnl
 .TP
 .I AllowSHA1Only (Boolean)
 Permit verify mode when only SHA1 support is available.  RFC6376 requires
@@ -56,10 +86,8 @@ feature changes the absence of SHA256 support from an error to a warning.
 
 .TP
 .I AlwaysAddARHeader (Boolean)
-Add an "Authentication-Results:" header field even to unsigned messages
-from domains with no "signs all" policy.  The reported DKIM result
-will be "none" in such cases.  Normally unsigned mail from non-strict
-domains does not cause the results header field to be added.
+Add an "Authentication-Results:" header field even to unsigned messages.
+The reported DKIM result will be "none".
 
 .TP
 .I ATPSDomains (string)
@@ -262,6 +290,7 @@ enabled.  When not set, such keys are considered to be syntactically invalid.
 A set of e-mail address, mail to which should never be signed by the filter.
 Note that this is an "any" feature; if any one of the recipients of the
 message matches a member of this list, the message will not be signed.
+@BYPASS_CRITERIA_MANNOTICE@
 
 .TP
 .I EnableCoredumps (boolean)
@@ -280,6 +309,7 @@ by the filter.  This is similar to the
 setting except that it bases its decision on the sender of the message
 as identified from the header fields or other message data, not the 
 identity of the SMTP client sending the message.
+@BYPASS_CRITERIA_MANNOTICE@
 
 .TP
 .I ExternalIgnoreList (dataset)
@@ -291,6 +321,7 @@ form as those of
 the
 .I PeerList
 option below.  The set is empty by default.
+@EXTERNAL_IGNORE_LIST_MANNOTICE@
 
 .TP
 .I FinalPolicyScript (string)
@@ -334,10 +365,13 @@ after signing.
 
 .TP
 .I IgnoreMalformedMail (boolean)
-Silently passes malformed messages without alteration.  This includes
-messages that fail the
-.I RequiredHeaders
-check, if enabled.  The default is to pass those messages but add an
+Silently passes malformed messages without
+@STRICT_MODE_MANIF@
+alteration when verifying.
+@STRICT_MODE_MANELSE@
+alteration.
+@STRICT_MODE_MANENDIF@
+The default is to pass those messages but add an
 Authentication-Results field indicating that they were malformed.
 
 .TP
@@ -355,6 +389,7 @@ option below.  If not specified, the default of "127.0.0.1" is applied.
 Naturally, providing a value here overrides the default, so if mail from
 127.0.0.1 should be signed, the list provided here should include that
 address explicitly.
+@LOCAL_SIGNING_CRITERIA_MANNOTICE@
 
 .TP
 .I KeepAuthResults (boolean)
@@ -511,8 +546,10 @@ for general operation.
 Defines a set of MTA-provided
 .I macros
 that should be checked to see if the sender has been determined to be a
-local user and therefore whether or not the message should be signed.  If
-a
+local user and therefore whether or not the message should be signed.
+@LOCAL_SIGNING_CRITERIA_MANNOTICE@
+
+If a
 .I value
 is specified matching a macro name in the data set, the value of the macro
 must match a value specified (matching is case-sensitive), otherwise the
@@ -543,6 +580,12 @@ and begins feeding an unbounded number of header fields of arbitrary
 size; since the filter keeps a cache of these, the attacker could
 cause the filter to allocate an unspecified amount of memory.  The
 default is 65536; a value of 0 removes the limit.
+
+replytextparam(<MalformedAddress>, <>, <@DEFAULT_SMTP_REPLY_TEXT@>)
+@STRICT_MODE_MANNOTICE@
+
+replytextparam(<MalformedMessage>, <>, <@DEFAULT_SMTP_REPLY_TEXT@>)
+@STRICT_MODE_MANNOTICE@
 
 .TP
 .I MaximumSignaturesToVerify (integer)
@@ -613,6 +656,26 @@ in which case the default is
 @PRODUCTION_TESTS_MANELSE@
 .I sv.
 @PRODUCTION_TESTS_MANENDIF@
+@STRICT_MODE_MANIF@
+When signing mode is enabled, messages are signed,
+when verifying mode is enabled, messages are
+@RESIGN_MANIF@
+verified and possibly re-signed, if conforming to the re-signing criteria,
+@RESIGN_MANELSE@
+verified,
+@RESIGN_MANENDIF@
+and when both modes are enabled, messages are verified,
+unless conforming to the signing
+@RESIGN_MANIF@
+or re-signing
+@RESIGN_MANENDIF@
+criteria, in which case they are
+@RESIGN_MANIF@
+signed or verified and then re-signed.
+@RESIGN_MANELSE@
+signed.
+@RESIGN_MANENDIF@
+@STRICT_MODE_MANENDIF@
 When signing mode is enabled, one of the following combinations must also
 be set:
 @SINGLE_SIGNING_MANIF@
@@ -623,6 +686,17 @@ be set:
 (a) KeyTable and SigningTable;
 (b) KeyTable and SetupPolicyScript.
 @SINGLE_SIGNING_MANENDIF@
+@RESIGN_MANIF@
+Similarly, for re-signing, one of the following combinations should be set:
+@SINGLE_SIGNING_MANIF@
+(1) KeyFile, Selector, no KeyTable;
+(2) KeyTable and ResignMailTo, no KeyFile, no Selector;
+(3) KeyTable and SetupPolicyScript, no KeyFile, no Selector.
+@SINGLE_SIGNING_MANELSE@
+(1) KeyTable and ResignMailTo;
+(2) KeyTable and SetupPolicyScript.
+@SINGLE_SIGNING_MANENDIF@
+@RESIGN_MANENDIF@
 
 .TP
 .I MTA (dataset)
@@ -631,6 +705,7 @@ A set of MTA names (a la the
 DaemonPortOptions Name parameter) whose mail should be signed by this
 filter.  There is no default, meaning MTA name is not considered when
 making the sign-verify decision.
+@LOCAL_SIGNING_CRITERIA_MANNOTICE@
 
 .TP
 .I MTACommand (string)
@@ -670,6 +745,9 @@ or hard-coded into the software.
 If set, this feature suppresses the use of "header.b" tags in added
 Authentication-Results header fields.  The default is "false", which means
 those tags will be applied.
+
+replytextparam(<NoSender>, <>, <@DEFAULT_SMTP_REPLY_TEXT@>)
+@STRICT_MODE_MANNOTICE@
 
 .TP
 .I OmitHeaders (dataset)
@@ -739,9 +817,27 @@ is not present in the DNS.  Possible values are the same as those for
 The default is
 .I accept.
 
+actionparam(<MalformedAddress>,
+<when the message sender address cannot be parsed>,
+<reject>)
+@STRICT_MODE_MANNOTICE@
+
+actionparam(<MalformedMessage>,
+<when a message's header section violates syntax rules such as those
+specified in RFC 5322, Section 3.6., and possibly others>,
+<reject>)
+@STRICT_MODE_MANNOTICE@
+
+actionparam(<NoSender>,
+<when the message sender cannot be determined>,
+<reject>)
+@STRICT_MODE_MANNOTICE@
+
 .TP
 .I On-NoSignature (string)
-Selects the action to be taken when a message arrives unsigned.
+Selects the action to be taken when a message arrives unsigned, unless
+.I AlwaysAddARHeader
+is set, in which case unsigned messages are always accepted.
 Possible values are the same as those for
 .I On-BadSignature.
 The default is
@@ -758,6 +854,16 @@ that may be a security concern.  Possible values are the same as those for
 .I On-BadSignature.
 The default is
 .I tempfail.
+
+actionparam(<ServiceException>,
+<after all attempts at determining whether
+a message is to be signed or verified
+@RESIGN_MANIF@
+and possibly re-signed
+@RESIGN_MANENDIF@
+have failed>,
+<reject>)
+@STRICT_MODE_MANNOTICE@
 
 .TP
 .I On-SignatureError (string)
@@ -785,8 +891,10 @@ list is likely to generate invalid signatures.
 .TP
 .I PeerList (dataset)
 Identifies a set of "peers" that identifies clients whose connections
-should be accepted without processing by this filter.  The set
-should contain on each line a hostname, domain name (e.g. ".example.com"),
+should be accepted without processing by this filter.
+@BYPASS_CRITERIA_MANNOTICE@
+
+The set should contain on each line a hostname, domain name (e.g. ".example.com"),
 IP address, an IPv6 address (including an IPv4 mapped address), or a
 CIDR-style IP specification (e.g. "192.168.1.0/24").
 
@@ -858,7 +966,7 @@ domain names (e.g. ".example.com").
 
 .TP
 .I RemoveOldSignatures (Boolean)
-Removes all existing signatures when operating in signing mode.
+Removes all existing signatures when signing a message.
 
 .TP
 .I ReplaceHeaders (data set)
@@ -964,7 +1072,14 @@ signature.  (See RFC6651 for details.)
 .TP
 .I RequiredHeaders (boolean)
 Checks all messages for compliance with RFC5322 header field count
-requirements.  Non-compliant messages are rejected.
+requirements.  Non-compliant messages are
+@STRICT_MODE_MANIF@
+treated according to the
+.I On-MalformedMessage
+parameter.
+@STRICT_MODE_MANELSE@
+rejected.
+@STRICT_MODE_MANENDIF@
 
 .TP
 .I RequireSafeKeys (boolean)
@@ -1071,6 +1186,14 @@ reporting address (i.e.
 in a reporting record in the DNS, the filter will send a structured report
 to that address containing details needed to reproduce the problem.  See
 RFC6651 for a complete description of this mechanism.
+
+replytextparam(<ServiceException>,
+<Due to the sensitive nature of the subject, this text should
+be kept intentionally vage and avoid stating the reason for the exception
+such as revealing details about the configuration of the mail handling system,
+or any reason for that matter.>,
+<@DEFAULT_SMTP_REPLY_TEXT@>)
+@STRICT_MODE_MANNOTICE@
 
 .TP
 .I SetupPolicyScript (string)

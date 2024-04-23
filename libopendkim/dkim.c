@@ -4573,9 +4573,6 @@ dkim_init(void *(*caller_mallocf)(void *closure, size_t nbytes),
 	FEATURE_ADD(libhandle, DKIM_FEATURE_CONDITIONAL);
 #endif /* _FFR_CONDITIONAL */
 
-	/* initialize the resolver */
-	(void) res_init();
-
 	return libhandle;
 }
 
