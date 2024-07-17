@@ -89,12 +89,12 @@ dkim_collapse(u_char *str)
 */
 
 _Bool
-dkim_hdrlist(u_char *buf, size_t buflen, u_char **hdrlist, _Bool first)
+dkim_hdrlist(u_char *buf, size_t buflen, const u_char * const *hdrlist, _Bool first)
 {
 	_Bool escape = FALSE;
 	int c;
 	int len;
-	u_char *p;
+	const u_char *p;
 	u_char *q;
 	u_char *end;
 
@@ -863,6 +863,8 @@ dkim_min_timeval(struct timeval *t1, struct timeval *t2, struct timeval *t,
 		*which = next;
 }
 
+#if defined(DEEP_ARGUMENT_COPIES)
+
 /*
 **  DKIM_COPY_ARRAY -- copy an array of char pointers
 **
@@ -926,6 +928,8 @@ dkim_clobber_array(char **in)
 
 	free(in);
 }
+
+#endif /* DEEP_ARGUMENT_COPIES */
 
 /*
 **  DKIM_STRISPRINT -- return TRUE iff a string contains only isprint() characters

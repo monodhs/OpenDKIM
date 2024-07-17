@@ -8,7 +8,10 @@ endif
 LDADD = ./libopendkim.la
 
 lib_LTLIBRARIES = libopendkim.la
-libopendkim_la_SOURCES = base32.c base64.c dkim-atps.c dkim-cache.c dkim-canon.c dkim-dns.c dkim-keys.c dkim-mailparse.c dkim-report.c dkim-tables.c dkim-test.c dkim-util.c dkim.c util.c base64.h dkim-cache.h dkim-canon.h dkim-dns.h dkim-internal.h dkim-keys.h dkim-mailparse.h dkim-report.h dkim-tables.h dkim-test.h dkim-types.h dkim-util.h dkim.h util.h
+libopendkim_la_SOURCES = base32.c base64.c dkim-atps.c dkim-cache.c dkim-canon.c dkim-dns.c dkim-keys.c dkim-mailparse.c dkim-report.c dkim-tables.c dkim-util.c dkim.c util.c base64.h dkim-cache.h dkim-canon.h dkim-dns.h dkim-internal.h dkim-keys.h dkim-mailparse.h dkim-report.h dkim-tables.h dkim-types.h dkim-util.h dkim.h util.h
+if TAS_SUPPORT
+libopendkim_la_SOURCES += dkim-test.c dkim-test.h
+endif
 libopendkim_la_CPPFLAGS = $(LIBCRYPTO_CPPFLAGS)
 libopendkim_la_CFLAGS = $(LIBCRYPTO_INCDIRS) $(LIBOPENDKIM_INC) $(COV_CFLAGS)
 libopendkim_la_LDFLAGS = -no-undefined  $(LIBCRYPTO_LIBDIRS) $(COV_LDFLAGS) -version-info $(LIBOPENDKIM_VERSION_INFO)
@@ -22,6 +25,8 @@ libopendkim_la_LDFLAGS += -rpath $(libdir)
 endif
 libopendkim_includedir = $(includedir)/opendkim
 libopendkim_include_HEADERS = dkim.h
+
+BUILT_SOURCES = dkim.h
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = opendkim.pc
@@ -46,3 +51,7 @@ symbols.map: $(libopendkim_include_HEADERS)
 		sort -u -o $@
 
 MOSTLYCLEANFILES=symbols.map *.gcno *.gcda
+
+SUFFIXES = .m4
+.m4:
+	$(M4) -D CODEGEN_MACROS="${top_srcdir}/codegen/macros.m4" $< > $@

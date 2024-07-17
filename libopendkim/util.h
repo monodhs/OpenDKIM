@@ -25,10 +25,14 @@
 extern int dkim_addrcmp __P((u_char *, u_char *));
 extern int dkim_check_dns_reply __P((unsigned char *ansbuf, size_t anslen,
                                      int xclass, int xtype));
+#if defined(DEEP_ARGUMENT_COPIES)
 extern void dkim_clobber_array __P((char **));
+#endif /* DEEP_ARGUMENT_COPIES */
 extern void dkim_collapse __P((u_char *));
+#if defined(DEEP_ARGUMENT_COPIES)
 extern const char **dkim_copy_array __P((char **));
-extern _Bool dkim_hdrlist __P((u_char *, size_t, u_char **, _Bool));
+#endif /* DEEP_ARGUMENT_COPIES */
+extern _Bool dkim_hdrlist __P((u_char *, size_t, const u_char * const *, _Bool));
 extern int dkim_hexchar __P((int c));
 extern void dkim_lowerhdr __P((u_char *));
 extern void dkim_min_timeval __P((struct timeval *, struct timeval *,

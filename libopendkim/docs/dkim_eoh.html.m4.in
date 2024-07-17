@@ -1,3 +1,4 @@
+include(DOCGEN_MACROS)dnl
 <html>
 <head><title>dkim_eoh()</title></head>
 <body>
@@ -50,19 +51,44 @@ Denote end-of-headers for a message.
     you must continue executing down to the
     <a href="dkim_eom.html"><tt>dkim_eom()</tt></a>
     call to determine whether or not a signature should have been present.
-<li>This function can return <tt>DKIM_STAT_SYNTAX</tt> when verifying if a
-    header that must be signed was not included in a received signature, or
+<li>This function can return <tt>DKIM_STAT_SYNTAX</tt> when verifying if
+    public key retrieval failed to produce a usable
+@REQUIRED_HEADERS_CHECKS_DOCIF@
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
+    key,
+@MANAGE_AUTHOR_IDENTIFIERS_DOCELSE@
+    key, or
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
+    if a header that must be signed was not included in a received
+@REQUIRED_HEADERS_CHECKS_DOCELSE@
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
+    key, or
+@MANAGE_AUTHOR_IDENTIFIERS_DOCELSE@
+    key.
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
+@REQUIRED_HEADERS_CHECKS_DOCENDIF@
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
+@REQUIRED_HEADERS_CHECKS_DOCIF@
+    message, or
+@REQUIRED_HEADERS_CHECKS_DOCENDIF@
     if the message appeared to contain no sender header field.  In the latter
     case, the <tt>dkim</tt> handle is rendered unusable by future calls
     to <a href="dkim_body.html"><tt>dkim_body()</tt></a> or
     <a href="dkim_eom.html"><tt>dkim_eom()</tt></a>.
+@MANAGE_AUTHOR_IDENTIFIERS_DOCELSE@
+@REQUIRED_HEADERS_CHECKS_DOCIF@
+    message.
+@REQUIRED_HEADERS_CHECKS_DOCENDIF@
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
 <li>This function can return <tt>DKIM_STAT_CANTVRFY</tt> when verifying if all
     discovered signatures were either marked to be ignored, contained syntax
     errors, or failed verification attempts.  This is only tested if the
     <tt>DKIM_LIBFLAG_EOHCHECK</tt> library flag is set.
+@STRICT_HEADERS_DOCIF@
 <li>This function can return <tt>DKIM_STAT_SYNTAX</tt> in either mode if
     the input message does not conform to the header field count checks
-    imposed by the <tt>DKIM_LIBFLAG_STRICTHDRS</tt> library flag.
+    imposed by the <tt>DKIM_LIBFLAGS_STRICTHDRS</tt> library flag.
+@STRICT_HEADERS_DOCENDIF@
 <li>This function can return <tt>DKIM_STAT_NORESOURCE</tt> for a verifying
     handle if an attempt to construct a DNS query based on the selector and
     domain in a signature exceeded the maximum allowable query size.

@@ -308,7 +308,11 @@ dkim_test_key(DKIM_LIB *lib, char *selector, char *domain,
 	assert(selector != NULL);
 	assert(domain != NULL);
 
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
 	dkim = dkim_verify(lib, (u_char *) "test", NULL, &stat);
+#else /* MANAGE_AUTHOR_IDENTIFIERS */
+	dkim = dkim_verify(lib, (u_char *) "test", NULL, (u_char *) domain, &stat);
+#endif /* !MANAGE_AUTHOR_IDENTIFIERS */
 	if (dkim == NULL)
 	{
 		if (err != NULL)
@@ -339,12 +343,14 @@ dkim_test_key(DKIM_LIB *lib, char *selector, char *domain,
 
 	sig = dkim->dkim_siglist[0];
 
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
 	dkim->dkim_user = dkim_strdup(dkim, (u_char *) "nobody", 0);
 	if (dkim->dkim_user == NULL)
 	{
 		(void) dkim_free(dkim);
 		return -1;
 	}
+#endif /* MANAGE_AUTHOR_IDENTIFIERS */
 
 	stat = dkim_get_key(dkim, sig, TRUE);
 	if (stat != DKIM_STAT_OK)

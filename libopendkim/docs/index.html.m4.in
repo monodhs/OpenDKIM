@@ -1,3 +1,4 @@
+include(DOCGEN_MACROS)dnl
 <html>
 <head>
 <title>OpenDKIM Library (libopendkim)</title>
@@ -127,6 +128,7 @@ package, that uses <tt>libopendkim</tt> to implement this facility. <p>
   <td> Initialize an instance of the <b>DKIM</b> service. </td>
  </tr>
 
+@QUERY_CACHE_DOCIF@
  <tr>
   <td> <a href="dkim_flush_cache.html"> <tt>dkim_flush_cache()</tt> </a> </td>
   <td> Flush the key cache. </td>
@@ -137,6 +139,7 @@ package, that uses <tt>libopendkim</tt> to implement this facility. <p>
   <td> Retrieve caching statistics. </td>
  </tr>
 
+@QUERY_CACHE_DOCENDIF@
  <tr>
   <td> <a href="dkim_geterror.html"> <tt>dkim_geterror()</tt> </a> </td>
   <td> Retrieve the most recent internal error message associated with a
@@ -299,11 +302,14 @@ package, that uses <tt>libopendkim</tt> to implement this facility. <p>
   <td> Allocate a new <b>DKIM</b> handle for verifying a message. </td>
  </tr>
 
+@ATPS_DOCIF@
  <tr>
   <td> <a href="dkim_atps_check.html"> <tt>dkim_atps_check()</tt> </a> </td>
   <td> Perform an Authorized Third-Party Signer check. </td>
  </tr>
 
+@ATPS_DOCENDIF@
+@DIFFHEADERS_DOCIF@
  <tr>
   <td> <a href="dkim_diffheaders.html"> <tt>dkim_diffheaders()</tt> </a> </td>
   <td> Compare original headers to received headers and look for approximate
@@ -311,6 +317,7 @@ package, that uses <tt>libopendkim</tt> to implement this facility. <p>
        failures. </td>
  </tr>
 
+@DIFFHEADERS_DOCENDIF@
  <tr>
   <td> <a href="dkim_get_reputation.html"> <tt>dkim_get_reputation()</tt> </a> </td>
   <td> Query a DKIM reputation service. </td>
@@ -343,24 +350,36 @@ package, that uses <tt>libopendkim</tt> to implement this facility. <p>
   <td> Retrieve the SSL error buffer for a DKIM signing handle. </td>
  </tr>
 
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
  <tr>
   <td> <a href="dkim_getuser.html"> <tt>dkim_getuser()</tt> </a> </td>
   <td> Return the sending user from a message represented by a DKIM
        handle. </td>
  </tr>
 
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
  <tr>
   <td> <a href="dkim_minbody.html"> <tt>dkim_minbody()</tt> </a> </td>
   <td> Return number of bytes required to satisfy all active canonicalizations
        referenced by a DKIM handle. </td>
  </tr>
 
+@DEBUG_FEATURES_DOCIF@
  <tr>
   <td> <a href="dkim_ohdrs.html"> <tt>dkim_ohdrs()</tt> </a> </td>
   <td> Retrieve the original header set from a signature if such were
        present. </td>
  </tr>
 
+@DEBUG_FEATURES_DOCENDIF@
+@RESIGN_DOCIF@
+ <tr>
+  <td> <a href="dkim_resign.html"> <tt>dkim_resign()</tt> </a> </td>
+  <td> Binds a signing handle to another handle to generate a second
+       signature for a message being signed or verified. </td>
+ </tr>
+
+@RESIGN_DOCENDIF@
  <tr>
   <td> <a href="dkim_sig_getbh.html"> <tt>dkim_sig_getbh()</tt> </a> </td>
   <td> Retrieve body hash test result from a signature handle. </td>

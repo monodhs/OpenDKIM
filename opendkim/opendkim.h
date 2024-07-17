@@ -187,7 +187,7 @@ extern int dkimf_xs_dbquery __P((lua_State *));
 extern int dkimf_xs_delheader __P((lua_State *));
 extern int dkimf_xs_delrcpt __P((lua_State *));
 extern int dkimf_xs_export __P((lua_State *));
-extern int dkimf_xs_fromdomain __P((lua_State *));
+extern int dkimf_xs_querydomain __P((lua_State *));
 extern int dkimf_xs_getenvfrom __P((lua_State *));
 extern int dkimf_xs_getheader __P((lua_State *));
 extern int dkimf_xs_getreputation __P((lua_State *));

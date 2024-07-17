@@ -49,34 +49,34 @@ default to 0, and string and dataset values default to being undefined.
 
 .SH PARAMETERS
 dnl
-define(<actionparam>,
-<.TP
-.I On-<$1> (string)
+define([[actionparam]],
+[[.TP
+.I On-[[$1]] (string)
 Selects the action to be taken $2.
 Possible values are the same as those for
 .I On-BadSignature.
 The default is
 .I $3.
 See the
-.I <$1>ReplyText
+.I [[$1]]ReplyText
 parameter for how to customize the text in the SMTP reply that the MTA
 responds with if
 . I reject
 or
 . I tempfail
-are in effect.>)dnl
+are in effect.]])dnl
 dnl
-define(<replytextparam>,
-<.TP
-.I <$1>ReplyText (string)
+define([[replytextparam]],
+[[.TP
+.I [[$1]]ReplyText (string)
 Specifies the text in the single-line SMTP reply that the MTA shall
 respond with if
-.I On-<$1>
+.I On-[[$1]]
 is set to one of the
 .I reject
 or
 .I tempfail
-values.  $2  The default is "$3".>)dnl
+values.  $2  The default is "$3".]])dnl
 dnl
 .TP
 .I AllowSHA1Only (Boolean)
@@ -240,12 +240,14 @@ is 300.
 Requests the inclusion of "z=" tags in signatures, which encode the
 original header field set for use by verifiers when diagnosing verification
 failures.  Not recommended for normal operation.
+@DEBUG_FEATURES_MANNOTICE@
 
 .TP
 .I DiagnosticDirectory (string)
 Directory into which to write diagnostic reports when message verification
 fails on a message bearing a "z=" tag.  If not set (the default), these files
 are not generated.
+@DEBUG_FEATURES_MANNOTICE@
 
 .TP
 .I DisableCryptoInit (Boolean)
@@ -307,7 +309,7 @@ Specifies a set of domains, mail from which should be ignored entirely
 by the filter.  This is similar to the
 .I PeerList
 setting except that it bases its decision on the sender of the message
-as identified from the header fields or other message data, not the 
+as given by the SMTP MAIL command, not the
 identity of the SMTP client sending the message.
 @BYPASS_CRITERIA_MANNOTICE@
 
@@ -338,6 +340,7 @@ for details. @LUA_MANNOTICE@
 Requests that the DKIM library convert bare CRs and LFs to CRLFs during
 body canonicalization, anticipating that an MTA somewhere before delivery
 will do that conversion anyway.  The default is to leave them as-is.
+@FIX_CRLF_MANNOTICE@
 
 .TP
 .I FlowData (string)
@@ -404,6 +407,7 @@ body canonicalizations of messages that are signed or verified.
 The location of these files can be set using the
 .I TemporaryDirectory
 parameter.  Intended only for debugging verification problems.
+@DEBUG_FEATURES_MANNOTICE@
 
 .TP
 .I KeyFile (string)
@@ -417,9 +421,15 @@ is defined.
 .I KeyTable (dataset)
 Gives the location of a file mapping key names to signing keys.
 @SINGLE_SIGNING_MANIF@
+@RESIGN_MANIF@
+Must be present, if
+.I ResignMailTo
+is.
+@RESIGN_MANELSE@
 If present, overrides any
 .I KeyFile
 setting in the configuration file.
+@RESIGN_MANENDIF@
 @SINGLE_SIGNING_MANELSE@
 Must be present.
 @SINGLE_SIGNING_MANENDIF@
@@ -428,16 +438,33 @@ name to three values: (a) the name of the domain to use in the signature's
 "d=" value; (b) the name of the selector to use in the signature's "s=" value;
 and (c) either a private key or a path to a file containing a private key.
 If the first value consists solely of a percent sign ("%") character,
-it will be replaced by the apparent domain of the sender when generating
-a signature.
+it will be replaced by the domain portion of the query address determined
+for a message when generating a signature for that
+@RESIGN_MANIF@
+message that is not a re-signing
+@LUA_MANIF@
+signature; the
+.I odkim.sign()
+function documented in
+.I opendkim-lua(3)
+offers some control over this replacement process.
+@LUA_MANELSE@
+signature.
+@LUA_MANENDIF@
+@RESIGN_MANELSE@
+message.
+@RESIGN_MANENDIF@
 If the third value starts with a slash ("/") character, or "./" or "../",
 then it is presumed to refer to a file from which the private key should
-be read, otherwise it is itself a PEM-encoded private key or a base64-encoded
-DER private key; a "%" in the third value in this case will be replaced by
-the apparent domain name of the sender.  The
+be read, otherwise it is itself a PEM-encoded
+@DEEP_ARGUMENT_COPIES_MANIF@
+private key or a base64-encoded DER
+@DEEP_ARGUMENT_COPIES_MANENDIF@
+private key; a "%" in the third value in this case will be replaced
+analoguously to the first value.  The
 .I SigningTable
 (see below) is used to select records from this table to be used to add
-signatures based on the message sender.
+signatures based on the query address.
 
 .TP
 .I LDAPAuthMechanism (string)
@@ -571,6 +598,13 @@ depends upon the version of milter used to compile the filter and the version
 of the MTA making the connection.
 
 This data set must be of type "file" or "csl".
+
+replytextparam([[MalformedAddress]], [[]], [[@DEFAULT_SMTP_REPLY_TEXT@]])
+@STRICT_MODE_MANNOTICE@
+
+replytextparam([[MalformedMessage]], [[]], [[@DEFAULT_SMTP_REPLY_TEXT@]])
+@STRICT_MODE_MANNOTICE@
+
 .TP
 .I MaximumHeaders (integer)
 Defines the maximum number of bytes the header block of a message may
@@ -581,20 +615,23 @@ size; since the filter keeps a cache of these, the attacker could
 cause the filter to allocate an unspecified amount of memory.  The
 default is 65536; a value of 0 removes the limit.
 
-replytextparam(<MalformedAddress>, <>, <@DEFAULT_SMTP_REPLY_TEXT@>)
-@STRICT_MODE_MANNOTICE@
-
-replytextparam(<MalformedMessage>, <>, <@DEFAULT_SMTP_REPLY_TEXT@>)
-@STRICT_MODE_MANNOTICE@
-
 .TP
 .I MaximumSignaturesToVerify (integer)
 Defines the maximum number of signatures on a message for which verification
 should be conducted.  The default is three.  Signatures are selected from
-the top of the message downward.  If
+the top of the message downward.  Note that this may exclude even signatures
+from the domain in the
+.I From:
+header field from verification.  If
 .I TrustSignaturesFrom
 is set, signatures from domains in that data set are always verified, which
 may consume part or all of, or even exceed, this limit.
+If the maximum number is not greater than zero, no upper limit is enforced
+and only signatures from domains in the
+.I From:
+header field or those in
+.I TrustSignaturesFrom
+are verified.
 
 .TP
 .I MaximumSignedBytes (integer)
@@ -687,15 +724,9 @@ be set:
 (b) KeyTable and SetupPolicyScript.
 @SINGLE_SIGNING_MANENDIF@
 @RESIGN_MANIF@
-Similarly, for re-signing, one of the following combinations should be set:
-@SINGLE_SIGNING_MANIF@
-(1) KeyFile, Selector, no KeyTable;
-(2) KeyTable and ResignMailTo, no KeyFile, no Selector;
-(3) KeyTable and SetupPolicyScript, no KeyFile, no Selector.
-@SINGLE_SIGNING_MANELSE@
+Similarly, for re-signing, one of the following combinations must be set:
 (1) KeyTable and ResignMailTo;
 (2) KeyTable and SetupPolicyScript.
-@SINGLE_SIGNING_MANENDIF@
 @RESIGN_MANENDIF@
 
 .TP
@@ -717,6 +748,7 @@ The default is @SENDMAIL_PATH@.  The executable should accept typical
 command line options "\-t" (take addresses from message body) and "\-f"
 (set envelope sender), accept the new message on its standard input, and
 return a non-zero exit status on any error.
+@DEBUG_FEATURES_MANNOTICE@
 
 .TP
 .I MultipleSignatures (Boolean)
@@ -746,7 +778,7 @@ If set, this feature suppresses the use of "header.b" tags in added
 Authentication-Results header fields.  The default is "false", which means
 those tags will be applied.
 
-replytextparam(<NoSender>, <>, <@DEFAULT_SMTP_REPLY_TEXT@>)
+replytextparam([[NoQueryAddress]], [[]], [[@DEFAULT_SMTP_REPLY_TEXT@]])
 @STRICT_MODE_MANNOTICE@
 
 .TP
@@ -817,20 +849,20 @@ is not present in the DNS.  Possible values are the same as those for
 The default is
 .I accept.
 
-actionparam(<MalformedAddress>,
-<when the message sender address cannot be parsed>,
-<reject>)
+actionparam([[MalformedAddress]],
+[[when the query address cannot be parsed]],
+[[reject]])
 @STRICT_MODE_MANNOTICE@
 
-actionparam(<MalformedMessage>,
-<when a message's header section violates syntax rules such as those
-specified in RFC 5322, Section 3.6., and possibly others>,
-<reject>)
+actionparam([[MalformedMessage]],
+[[when a message's header section violates syntax rules such as those
+specified in RFC 5322, Section 3.6., and possibly others]],
+[[reject]])
 @STRICT_MODE_MANNOTICE@
 
-actionparam(<NoSender>,
-<when the message sender cannot be determined>,
-<reject>)
+actionparam([[NoQueryAddress]],
+[[when the query address cannot be determined for a message]],
+[[reject]])
 @STRICT_MODE_MANNOTICE@
 
 .TP
@@ -855,14 +887,14 @@ that may be a security concern.  Possible values are the same as those for
 The default is
 .I tempfail.
 
-actionparam(<ServiceException>,
-<after all attempts at determining whether
+actionparam([[ServiceException]],
+[[after all attempts at determining whether
 a message is to be signed or verified
 @RESIGN_MANIF@
 and possibly re-signed
 @RESIGN_MANENDIF@
-have failed>,
-<reject>)
+have failed]],
+[[reject]])
 @STRICT_MODE_MANNOTICE@
 
 .TP
@@ -948,6 +980,7 @@ not local.
 Messages bearing signatures that failed to verify are redirected to the
 specified address.  The original envelope recipient set is recorded in
 the header before redirection occurs.  By default, no redirection is done.
+@REDIRECT_FAILURES_MANNOTICE@
 
 .TP
 .I RemoveARAll (Boolean)
@@ -981,9 +1014,10 @@ setting.  By default, all header fields are included.
 Specifies a file containing a list of text replacement rules that are
 applied to the message header fields to replace certain content expected to be
 changed as the message passes through local MTAs.  This can be used to
-accommodate expected changes such as those made to From: fields by MTA
-"masquerade" features.  Each entry in the file consists of a POSIX regular
-expression, followed by a tab (ASCII 9), followed by the text that should
+accommodate expected changes such as those made to
+.I From:
+fields by MTA "masquerade" features.  Each entry in the file consists of a POSIX
+regular expression, followed by a tab (ASCII 9), followed by the text that should
 be used to replace the text matching the expression.  The '#' character
 denotes the beginning of a comment and text from that point on in a
 single line is ignored.  Blank lines are also skipped.
@@ -991,11 +1025,13 @@ single line is ignored.  Blank lines are also skipped.
 
 .TP
 .I ReportAddress (string)
-Specifies the string to use in the From: header field for outgoing reports
-(see
+Specifies the string to use in the
+.I From:
+header field for outgoing reports (see
 .I SendReports
 below).  If not specified, the executing user and local hostname will be
 used to construct the address.
+@DEBUG_FEATURES_MANNOTICE@
 
 .TP
 .I ReportBccAddress (string)
@@ -1003,6 +1039,7 @@ Specifies address(es) to include in a Bcc: header field on outgoing reports
 (see
 .I SendReports
 below). If multiple addresses are required, they should be comma separated.
+@DEBUG_FEATURES_MANNOTICE@
 
 .TP
 .I ReputationCache (string)
@@ -1068,6 +1105,7 @@ below). If multiple addresses are required, they should be comma separated.
 .I RequestReports (boolean)
 When signing, includes a request for signature evaluation failures in the
 signature.  (See RFC6651 for details.)
+@DEBUG_FEATURES_MANNOTICE@
 
 .TP
 .I RequiredHeaders (boolean)
@@ -1105,15 +1143,13 @@ record.  The full address is checked in each case, then the hostname, then
 each domain preceded by ".".  If there is a match, the value returned is
 presumed to be the name of a key in the 
 .I KeyTable
+@RESIGN_MANIF@
+@RESIGN_MANELSE@
 @SINGLE_SIGNING_MANIF@
 (if defined)
 @SINGLE_SIGNING_MANENDIF@
+@RESIGN_MANENDIF@
 to be used to re-sign the message in addition to verifying it.
-@SINGLE_SIGNING_MANIF@
-If there is a match without a
-.I KeyTable,
-the default key is applied.
-@SINGLE_SIGNING_MANENDIF@
 @RESIGN_MANNOTICE@
 
 .TP
@@ -1165,16 +1201,25 @@ is defined.
 .TP
 .I SenderHeaders (dataset)
 Specifies an ordered list of header fields that should be searched to
-determine the sender of a message.  The first header field found is the
-one whose value is used.  This is mainly used when signing
-for deciding which signing request(s) to make.  By default, the "From"
-header field is the only one checked.  See the
+determine the query address for a message.  The first header field found is the
+one whose value is used.  This is
+@STRICT_MODE_MANIF@
+@STRICT_MODE_MANELSE@
+mainly
+@STRICT_MODE_MANENDIF@
+used when signing for deciding which signing request(s) to make.
+@MANAGE_AUTHOR_IDENTIFIERS_MANIF@
+By default, the
+.I From:
+header field is the only one checked.
+@MANAGE_AUTHOR_IDENTIFIERS_MANENDIF@
+See the
 .I OmitHeaders
 setting for a description of possible values.
 
 .TP
 .I SenderMacro (string)
-Use the milter macro string to determine the sender of the message.
+Use the milter macro string to determine the query address for the message.
 @SENDER_MACRO_MANNOTICE@
 
 .TP
@@ -1186,13 +1231,14 @@ reporting address (i.e.
 in a reporting record in the DNS, the filter will send a structured report
 to that address containing details needed to reproduce the problem.  See
 RFC6651 for a complete description of this mechanism.
+@DEBUG_FEATURES_MANNOTICE@
 
-replytextparam(<ServiceException>,
-<Due to the sensitive nature of the subject, this text should
+replytextparam([[ServiceException]],
+[[Due to the sensitive nature of the subject, this text should
 be kept intentionally vage and avoid stating the reason for the exception
 such as revealing details about the configuration of the mail handling system,
-or any reason for that matter.>,
-<@DEFAULT_SMTP_REPLY_TEXT@>)
+or any reason for that matter.]],
+[[@DEFAULT_SMTP_REPLY_TEXT@]])
 @STRICT_MODE_MANNOTICE@
 
 .TP
@@ -1232,7 +1278,7 @@ of this field.
 .TP
 .I SigningTable (dataset)
 Defines a table used to select one or more signatures to apply to a message
-based on the address found in the From: header field.  Keys in this table
+based on the query address determined for the message.  Keys in this table
 vary depending on the type of table used; values in this data set should
 include one field that contains a name found in the
 .I KeyTable
@@ -1243,13 +1289,13 @@ that the "i=" value will not be included in the signature if it conflicts
 with the signing domain (the "d=" value).
 
 If the first field contains only a "%" character, it will be replaced by the
-domain found in the From: header field.  Similarly, within the optional
+domain found in the query address.  Similarly, within the optional
 second field, any "%" character will be replaced by the domain found in
-the From: header field.
+the query address.
 
 If this table specifies a regular expression file ("refile"),
-then the keys are wildcard patterns that are matched against the address
-found in the From: header field.  Entries are checked in the order
+then the keys are wildcard patterns that are matched against the
+query address.  Entries are checked in the order
 in which they appear in the file.
 
 For all other database types, the full
@@ -1363,6 +1409,7 @@ data from a single repoter.
 .I StrictHeaders (Boolean)
 If set, instructs the DKIM library to refuse processing of a message if the
 header field count does not conform to RFC5322 Section 3.6.
+@STRICT_HEADERS_MANNOTICE@
 
 .TP
 .I StrictTestMode (Boolean)
@@ -1423,6 +1470,7 @@ be written.  The default is to use the
 .I libopendkim
 default location, currently
 .I /tmp.
+@DEBUG_FEATURES_MANNOTICE@
 
 .TP
 .I TestDNSData (data set)
@@ -1445,11 +1493,16 @@ at http://unbound.net for the expected format of this file.
 
 .TP
 .I TrustSignaturesFrom (dataset)
-This value consists of a set of domains that are considered trustworthy in
+Specifies a set of domains that are considered trustworthy in
 terms of third-party signatures.  That is, if a message arrives with a
-signature from a domain that doesn't match the domain in the From: header,
-this setting determines whether or not that signature will be trusted.  If
-this value is undefined, all signatures are trusted.
+signature from a domain that doesn't match the domain in the
+.I From:
+header field, this setting determines whether or not that signature will
+be trusted.  If this set is empty and
+.I MaximumSignaturesToVerify
+is not greater than zero, only signatures from the domain in the
+.I From:
+header field will be trusted.
 
 .TP
 .I UMask (integer)
@@ -1524,9 +1577,14 @@ This default VBR type if not specified in the X-VBR-Type header field.
 .TP
 .I WeakSyntaxChecks (Boolean)
 Requests that the library continue processing messages even if syntax errors
-are discovered early in message analysis.  This means, for example, that
-a signed message with a mangled From: field will still proceed to verification
+are discovered early in message analysis.
+@MANAGE_AUTHOR_IDENTIFIERS_MANIF@
+This means, for example, that
+a signed message with a mangled
+.I From:
+field will still proceed to verification
 even if the author's domain could not be determined.
+@MANAGE_AUTHOR_IDENTIFIERS_MANENDIF@
 
 .SH NOTES
 When using DNS timeouts (see the

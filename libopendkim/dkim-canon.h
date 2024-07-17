@@ -35,7 +35,11 @@ extern DKIM_STAT dkim_canon_gethashes __P((DKIM_SIGINFO *, void **, size_t *,
 extern DKIM_STAT dkim_canon_header_string __P((struct dkim_dstring *,
                                                dkim_canon_t, unsigned char *,
                                                size_t, _Bool));
+#if defined(DEBUG_FEATURES)
 extern DKIM_STAT dkim_canon_init __P((DKIM *, _Bool, _Bool));
+#else /* DEBUG_FEATURES */
+extern DKIM_STAT dkim_canon_init __P((DKIM *));
+#endif /* !DEBUG_FEATURES */
 extern u_long dkim_canon_minbody __P((DKIM *));
 extern DKIM_STAT dkim_canon_runheaders __P((DKIM *));
 extern int dkim_canon_selecthdrs __P((DKIM *, u_char *, struct dkim_header **,

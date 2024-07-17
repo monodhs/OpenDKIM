@@ -97,11 +97,13 @@ dkim_canon_free(DKIM *dkim, DKIM_CANON *canon)
 
 			sha = (struct dkim_sha *) canon->canon_hash;
 
+#if defined(DEBUG_FEATURES)
 			if (sha->sha_tmpfd != -1)
 			{
 				close(sha->sha_tmpfd);
 				sha->sha_tmpfd = -1;
 			}
+#endif /* DEBUG_FEATURES */
 
 			gnutls_hash_deinit(sha->sha_hd, NULL);
 
@@ -117,6 +119,7 @@ dkim_canon_free(DKIM *dkim, DKIM_CANON *canon)
 #else /* USE_GNUTLS */
 		  case DKIM_HASHTYPE_SHA1:
 		  {
+#if defined(DEBUG_FEATURES)
 			struct dkim_sha1 *sha1;
 
 			sha1 = (struct dkim_sha1 *) canon->canon_hash;
@@ -127,6 +130,7 @@ dkim_canon_free(DKIM *dkim, DKIM_CANON *canon)
 				sha1->sha1_tmpfd = -1;
 				sha1->sha1_tmpbio = NULL;
 			}
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }
@@ -134,6 +138,7 @@ dkim_canon_free(DKIM *dkim, DKIM_CANON *canon)
 # ifdef HAVE_SHA256
 		  case DKIM_HASHTYPE_SHA256:
 		  {
+#if defined(DEBUG_FEATURES)
 			struct dkim_sha256 *sha256;
 
 			sha256 = (struct dkim_sha256 *) canon->canon_hash;
@@ -144,6 +149,7 @@ dkim_canon_free(DKIM *dkim, DKIM_CANON *canon)
 				sha256->sha256_tmpfd = -1;
 				sha256->sha256_tmpbio = NULL;
 			}
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }
@@ -210,8 +216,10 @@ dkim_canon_write(DKIM_CANON *canon, u_char *buf, size_t buflen)
 
 		gnutls_hash(sha->sha_hd, buf, buflen);
 
+#if defined(DEBUG_FEATURES)
 		if (sha->sha_tmpfd != -1)
 			(void) write(sha->sha_tmpfd, buf, buflen);
+#endif /* DEBUG_FEATURES */
 
 		break;
 	  }
@@ -223,8 +231,10 @@ dkim_canon_write(DKIM_CANON *canon, u_char *buf, size_t buflen)
 		sha1 = (struct dkim_sha1 *) canon->canon_hash;
 		SHA1_Update(&sha1->sha1_ctx, buf, buflen);
 
+#if defined(DEBUG_FEATURES)
 		if (sha1->sha1_tmpbio != NULL)
 			BIO_write(sha1->sha1_tmpbio, buf, buflen);
+#endif /* DEBUG_FEATURES */
 
 		break;
 	  }
@@ -237,8 +247,10 @@ dkim_canon_write(DKIM_CANON *canon, u_char *buf, size_t buflen)
 		sha256 = (struct dkim_sha256 *) canon->canon_hash;
 		SHA256_Update(&sha256->sha256_ctx, buf, buflen);
 
+#if defined(DEBUG_FEATURES)
 		if (sha256->sha256_tmpbio != NULL)
 			BIO_write(sha256->sha256_tmpbio, buf, buflen);
+#endif /* DEBUG_FEATURES */
 
 		break;
 	  }
@@ -535,6 +547,8 @@ dkim_canon_flushblanks(DKIM_CANON *canon)
 	canon->canon_blanks = 0;
 }
 
+#if defined(FIX_CRLF)
+
 /*
 **  DKIM_CANON_FIXCRLF -- rebuffer a body chunk, fixing "naked" CRs and LFs
 **
@@ -605,6 +619,8 @@ dkim_canon_fixcrlf(DKIM *dkim, DKIM_CANON *canon, u_char *buf, size_t buflen)
 	return DKIM_STAT_OK;
 }
 
+#endif /* FIX_CRLF */
+
 /* ========================= PUBLIC SECTION ========================= */
 
 /*
@@ -620,10 +636,16 @@ dkim_canon_fixcrlf(DKIM *dkim, DKIM_CANON *canon, u_char *buf, size_t buflen)
 */
 
 DKIM_STAT
+#if defined(DEBUG_FEATURES)
 dkim_canon_init(DKIM *dkim, _Bool tmp, _Bool keep)
+#else /* DEBUG_FEATURES */
+dkim_canon_init(DKIM *dkim)
+#endif /* !DEBUG_FEATURES */
 {
+#if defined(DEBUG_FEATURES)
 	int fd;
 	DKIM_STAT status;
+#endif /* DEBUG_FEATURES */
 	DKIM_CANON *cur;
 
 	assert(dkim != NULL);
@@ -662,7 +684,9 @@ dkim_canon_init(DKIM *dkim, _Bool tmp, _Bool keep)
 			}
 
 			memset(sha, '\0', sizeof(struct dkim_sha));
+#if defined(DEBUG_FEATURES)
 			sha->sha_tmpfd = -1;
+#endif /* DEBUG_FEATURES */
 
 			/* XXX -- test for errors */
 			if (cur->canon_hashtype == DKIM_HASHTYPE_SHA1)
@@ -681,7 +705,8 @@ dkim_canon_init(DKIM *dkim, _Bool tmp, _Bool keep)
 				DKIM_FREE(dkim, sha);
 				return DKIM_STAT_INTERNAL;
 			}
-				
+
+#if defined(DEBUG_FEATURES)
 			if (tmp)
 			{
 				status = dkim_tmpfile(dkim, &fd, keep);
@@ -693,6 +718,7 @@ dkim_canon_init(DKIM *dkim, _Bool tmp, _Bool keep)
 
 				sha->sha_tmpfd = fd;
 			}
+#endif /* DEBUG_FEATURES */
 
 			cur->canon_hash = sha;
 
@@ -716,6 +742,7 @@ dkim_canon_init(DKIM *dkim, _Bool tmp, _Bool keep)
 			memset(sha1, '\0', sizeof(struct dkim_sha1));
 			SHA1_Init(&sha1->sha1_ctx);
 
+#if defined(DEBUG_FEATURES)
 			if (tmp)
 			{
 				status = dkim_tmpfile(dkim, &fd, keep);
@@ -728,6 +755,7 @@ dkim_canon_init(DKIM *dkim, _Bool tmp, _Bool keep)
 				sha1->sha1_tmpfd = fd;
 				sha1->sha1_tmpbio = BIO_new_fd(fd, 1);
 			}
+#endif /* DEBUG_FEATURES */
 
 			cur->canon_hash = sha1;
 
@@ -752,6 +780,7 @@ dkim_canon_init(DKIM *dkim, _Bool tmp, _Bool keep)
 			memset(sha256, '\0', sizeof(struct dkim_sha256));
 			SHA256_Init(&sha256->sha256_ctx);
 
+#if defined(DEBUG_FEATURES)
 			if (tmp)
 			{
 				status = dkim_tmpfile(dkim, &fd, keep);
@@ -764,6 +793,7 @@ dkim_canon_init(DKIM *dkim, _Bool tmp, _Bool keep)
 				sha256->sha256_tmpfd = fd;
 				sha256->sha256_tmpbio = BIO_new_fd(fd, 1);
 			}
+#endif /* DEBUG_FEATURES */
 
 			cur->canon_hash = sha256;
 
@@ -849,15 +879,12 @@ dkim_add_canon(DKIM *dkim, _Bool hdr, dkim_canon_t canon, int hashtype,
 
 	assert(dkim != NULL);
 	assert(canon == DKIM_CANON_SIMPLE || canon == DKIM_CANON_RELAXED);
-	if (dkim_libfeature(dkim->dkim_libhandle, DKIM_FEATURE_SHA256))
-	{
-		assert(hashtype == DKIM_HASHTYPE_SHA1 ||
-		       hashtype == DKIM_HASHTYPE_SHA256);
-	}
-	else
-	{
-		assert(hashtype == DKIM_HASHTYPE_SHA1);
-	}
+#if DKIM_LIBFEATURE(SHA256)
+	assert(hashtype == DKIM_HASHTYPE_SHA1 ||
+	       hashtype == DKIM_HASHTYPE_SHA256);
+#else /* SHA256 */
+	assert(hashtype == DKIM_HASHTYPE_SHA1);
+#endif /* !SHA256 */
 
 	if (!hdr)
 	{
@@ -1426,8 +1453,10 @@ dkim_canon_runheaders(DKIM *dkim)
 			sha1 = (struct dkim_sha1 *) cur->canon_hash;
 			SHA1_Final(sha1->sha1_out, &sha1->sha1_ctx);
 
+#if defined(DEBUG_FEATURES)
 			if (sha1->sha1_tmpbio != NULL)
 				(void) BIO_flush(sha1->sha1_tmpbio);
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }
@@ -1440,8 +1469,10 @@ dkim_canon_runheaders(DKIM *dkim)
 			sha256 = (struct dkim_sha256 *) cur->canon_hash;
 			SHA256_Final(sha256->sha256_out, &sha256->sha256_ctx);
 
+#if defined(DEBUG_FEATURES)
 			if (sha256->sha256_tmpbio != NULL)
 				(void) BIO_flush(sha256->sha256_tmpbio);
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }
@@ -1548,11 +1579,13 @@ dkim_canon_signature(DKIM *dkim, struct dkim_header *hdr)
 
 			gnutls_hash_output(sha->sha_hd, sha->sha_out);
 
+#if defined(DEBUG_FEATURES)
 			if (sha->sha_tmpfd != -1)
 			{
 				close(sha->sha_tmpfd);
 				sha->sha_tmpfd = -1;
 			}
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }
@@ -1564,8 +1597,10 @@ dkim_canon_signature(DKIM *dkim, struct dkim_header *hdr)
 			sha1 = (struct dkim_sha1 *) cur->canon_hash;
 			SHA1_Final(sha1->sha1_out, &sha1->sha1_ctx);
 
+#if defined(DEBUG_FEATURES)
 			if (sha1->sha1_tmpbio != NULL)
 				(void) BIO_flush(sha1->sha1_tmpbio);
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }
@@ -1578,8 +1613,10 @@ dkim_canon_signature(DKIM *dkim, struct dkim_header *hdr)
 			sha256 = (struct dkim_sha256 *) cur->canon_hash;
 			SHA256_Final(sha256->sha256_out, &sha256->sha256_ctx);
 
+#if defined(DEBUG_FEATURES)
 			if (sha256->sha256_tmpbio != NULL)
 				(void) BIO_flush(sha256->sha256_tmpbio);
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }
@@ -1651,8 +1688,10 @@ dkim_canon_minbody(DKIM *dkim)
 DKIM_STAT
 dkim_canon_bodychunk(DKIM *dkim, u_char *buf, size_t buflen)
 {
+#if defined(FIX_CRLF)
 	_Bool fixcrlf;
 	DKIM_STAT status;
+#endif /* FIX_CRLF */
 	u_int wlen;
 	DKIM_CANON *cur;
 	size_t plen;
@@ -1665,7 +1704,9 @@ dkim_canon_bodychunk(DKIM *dkim, u_char *buf, size_t buflen)
 
 	dkim->dkim_bodylen += buflen;
 
+#if defined(FIX_CRLF)
 	fixcrlf = (dkim->dkim_libhandle->dkiml_flags & DKIM_LIBFLAGS_FIXCRLF);
+#endif /* FIX_CRLF */
 
 	for (cur = dkim->dkim_canonhead; cur != NULL; cur = cur->canon_next)
 	{
@@ -1676,6 +1717,7 @@ dkim_canon_bodychunk(DKIM *dkim, u_char *buf, size_t buflen)
 		start = buf;
 		plen = buflen;
 
+#if defined(FIX_CRLF)
 		if (fixcrlf)
 		{
 			status = dkim_canon_fixcrlf(dkim, cur, buf, buflen);
@@ -1685,6 +1727,7 @@ dkim_canon_bodychunk(DKIM *dkim, u_char *buf, size_t buflen)
 			start = dkim_dstring_get(dkim->dkim_canonbuf);
 			plen = dkim_dstring_len(dkim->dkim_canonbuf);
 		}
+#endif /* FIX_CRLF */
 
 		eob = start + plen - 1;
 		wrote = start;
@@ -1727,6 +1770,7 @@ dkim_canon_bodychunk(DKIM *dkim, u_char *buf, size_t buflen)
 					if (p == start &&
 					    cur->canon_lastchar == '\r')
 					{
+#if defined(FIX_CRLF)
 						if (fixcrlf)
 						{
 							dkim_canon_buffer(cur,
@@ -1736,6 +1780,7 @@ dkim_canon_bodychunk(DKIM *dkim, u_char *buf, size_t buflen)
 							cur->canon_blankline = TRUE;
 						}
 						else
+#endif /* FIX_CRLF */
 						{
 							dkim_canon_buffer(cur,
 							                  (u_char *) "\r",
@@ -1807,7 +1852,11 @@ dkim_canon_bodychunk(DKIM *dkim, u_char *buf, size_t buflen)
 					break;
 
 				  case 2:
+#if defined(FIX_CRLF)
 					if (fixcrlf || *p == '\n')
+#else /* FIX_CRLF */
+					if (           *p == '\n')
+#endif /* !FIX_CRLF */
 					{
 						if (cur->canon_blankline)
 						{
@@ -1937,6 +1986,7 @@ dkim_canon_closebody(DKIM *dkim)
 		/* handle unprocessed content */
 		if (dkim_dstring_len(cur->canon_buf) > 0)
 		{
+#if defined(FIX_CRLF)
 			if ((dkim->dkim_libhandle->dkiml_flags & DKIM_LIBFLAGS_FIXCRLF) != 0)
 			{
 				dkim_canon_buffer(cur,
@@ -1945,6 +1995,7 @@ dkim_canon_closebody(DKIM *dkim)
 				dkim_canon_buffer(cur, CRLF, 2);
 			}
 			else
+#endif /* FIX_CRLF */
 			{
 				dkim_error(dkim, "CRLF at end of body missing");
 				return DKIM_STAT_SYNTAX;
@@ -1999,8 +2050,10 @@ dkim_canon_closebody(DKIM *dkim)
 			sha1 = (struct dkim_sha1 *) cur->canon_hash;
 			SHA1_Final(sha1->sha1_out, &sha1->sha1_ctx);
 
+#if defined(DEBUG_FEATURES)
 			if (sha1->sha1_tmpbio != NULL)
 				(void) BIO_flush(sha1->sha1_tmpbio);
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }
@@ -2013,8 +2066,10 @@ dkim_canon_closebody(DKIM *dkim)
 			sha256 = (struct dkim_sha256 *) cur->canon_hash;
 			SHA256_Final(sha256->sha256_out, &sha256->sha256_ctx);
 
+#if defined(DEBUG_FEATURES)
 			if (sha256->sha256_tmpbio != NULL)
 				(void) BIO_flush(sha256->sha256_tmpbio);
+#endif /* DEBUG_FEATURES */
 
 			break;
 		  }

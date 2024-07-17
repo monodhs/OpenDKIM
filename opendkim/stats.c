@@ -109,8 +109,8 @@ dkimf_stats_record(char *path, u_char *jobid, char *name, char *prefix,
 	ssize_t signlen;
 	ssize_t msglen;
 	FILE *out;
-	unsigned char *from;
-	char *p;
+	const unsigned char *from;
+	const unsigned char *p;
 	DKIM_SIGINFO **sigs;
 	char tmp[BUFRSZ + 1];
 
@@ -154,7 +154,7 @@ dkimf_stats_record(char *path, u_char *jobid, char *name, char *prefix,
 	}
 
 	from = dkim_getdomain(dkimv);
-	if (from == NULL)
+	if (from == NULL || from[0] == '\0')
 	{
 		if (dolog)
 			syslog(LOG_ERR, "%s: dkim_getdomain() failed", jobid);

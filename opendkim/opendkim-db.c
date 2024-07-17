@@ -4087,7 +4087,7 @@ dkimf_db_put(DKIMF_DB db, void *buf, size_t buflen,
 */
 
 int
-dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
+dkimf_db_get(DKIMF_DB db, const void *buf, size_t buflen,
              DKIMF_DBDATA req, unsigned int reqnum, _Bool *exists)
 {
 	_Bool matched;
@@ -4096,6 +4096,13 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 	assert(buf != NULL);
 	assert(req != NULL || reqnum == 0);
 
+#define MMM(kb, bf, kl, ke)				\
+	do {						\
+		if (((kl) + (ke)) > (sizeof kb))	\
+			(kl) = (sizeof kb) - (ke);	\
+		memcpy((kb), (bf), ((kl) + (ke)));	\
+	} while (0)
+
 	/*
 	**  Indicate "not found" if we require ASCII-only and there was
 	**  non-ASCII in the query.
@@ -4103,8 +4110,8 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 
 	if ((db->db_flags & DKIMF_DB_FLAG_ASCIIONLY) != 0)
 	{
-		char *p;
-		char *end;
+		const char *p;
+		const char *end;
 
 		end = (char *) buf + buflen;
 
@@ -4238,14 +4245,16 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 		DB *bdb;
 		DBT d;
 		DBT q;
+		char keybuf[BUFRSZ];
 		char databuf[BUFRSZ + 1];
 
 		bdb = (DB *) db->db_handle;
 
 		memset(&d, 0, sizeof d);
 		memset(&q, 0, sizeof q);
-		q.data = (char *) buf;
+		q.data = keybuf;
 		q.size = (buflen == 0 ? strlen(q.data) : buflen);
+		MMM(keybuf, buf, q.size, 0);
 
 		ret = 0;
 
@@ -4714,6 +4723,8 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 		char query[BUFRSZ];
 		char filter[BUFRSZ];
 		struct timeval timeout;
+		char keybuf[BUFRSZ + 1];
+		size_t keylen;
 
 		ld = (LDAP *) db->db_handle;
 		ldap = (struct dkimf_db_ldap *) db->db_data;
@@ -4737,6 +4748,10 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 			}
 		}
 
+		keylen = strlen(buf);
+		MMM(keybuf, buf, keylen, 1);
+		keybuf[keylen] = '\0';
+
 #ifdef _FFR_LDAP_CACHING
 # ifdef USE_DB
 		if (ldap->ldap_cache != NULL)
@@ -4748,7 +4763,7 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 			dbd.dbdata_buflen = sizeof ldc;
 			dbd.dbdata_flags = DKIMF_DB_DATA_BINARY;
 
-			status = dkimf_db_get(ldap->ldap_cache, buf, buflen,
+			status = dkimf_db_get(ldap->ldap_cache, keybuf, keylen,
 			                      &dbd, 1, &cex);
 
 			if (cex)
@@ -4873,7 +4888,7 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 				ldc->ldc_state = DKIMF_DB_CACHE_PENDING;
 
 				status = dkimf_db_put(ldap->ldap_cache,
-				                      buf, buflen,
+				                      keybuf, keylen,
 				                      &ldc, sizeof ldc);
 				if (status != 0)
 				{
@@ -4893,11 +4908,11 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 		memset(query, '\0', sizeof query);
 		memset(filter, '\0', sizeof filter);
 
-		dkimf_db_mkldapquery(ldap->ldap_descr->lud_dn, buf, FALSE,
+		dkimf_db_mkldapquery(ldap->ldap_descr->lud_dn, keybuf, FALSE,
 		                     query, sizeof query);
 		if (ldap->ldap_descr->lud_filter != NULL)
 		{
-			dkimf_db_mkldapquery(ldap->ldap_descr->lud_filter, buf,
+			dkimf_db_mkldapquery(ldap->ldap_descr->lud_filter, keybuf,
 			                     FALSE, filter, sizeof filter);
 		}
 
@@ -4940,7 +4955,7 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 
 			pthread_mutex_unlock(&ldap->ldap_lock);
 
-			status = dkimf_db_get(db, buf, buflen, req, reqnum,
+			status = dkimf_db_get(db, keybuf, keylen, req, reqnum,
 			                      exists);
 
 			db->db_iflags &= ~DKIMF_DB_IFLAG_RECONNECT;
@@ -5289,14 +5304,18 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 		struct dkimf_db_socket *sdb;
 		char *tmp;
 		char inbuf[BUFRSZ];
+		char keybuf[BUFRSZ];
+		size_t keylen;
 
 		sdb = (struct dkimf_db_socket *) db->db_handle;
 
 		timeout.tv_sec = DKIMF_SOCKET_TIMEOUT;
 		timeout.tv_usec = 0;
 
-		iov[0].iov_base = buf;
-		iov[0].iov_len = buflen;
+		keylen = buflen;
+		MMM(keybuf, buf, keylen, 0);
+		iov[0].iov_base = keybuf;
+		iov[0].iov_len = keylen;
 
 		iov[1].iov_base = "\n";
 		iov[1].iov_len = 1;
@@ -5377,11 +5396,13 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 		struct dkimf_db_mdb *mdb;
 		MDB_val key;
 		MDB_val data;
+		char keybuf[BUFRSZ];
 
 		mdb = (struct dkimf_db_mdb *) db->db_handle;
 
 		key.mv_size = buflen;
-		key.mv_data = buf;
+		key.mv_data = keybuf;
+		MMM(keybuf, buf, key.mv_size, 0);
 
 		status = mdb_get(mdb->mdb_txn, mdb->mdb_dbi, &key, &data);
 		if (status == MDB_NOTFOUND)
@@ -5475,6 +5496,8 @@ dkimf_db_get(DKIMF_DB db, void *buf, size_t buflen,
 		assert(0);
 		return 0;		/* to silence the compiler */
 	}
+
+#undef MMM
 
 	/* NOTREACHED */
 }
@@ -6449,7 +6472,7 @@ dkimf_db_walk(DKIMF_DB db, _Bool first, void *key, size_t *keylen,
 */
 
 static int
-dkimf_db_mkarray_base(DKIMF_DB db, char ***a, const char **base)
+dkimf_db_mkarray_base(DKIMF_DB db, char ***a, const char * const *base)
 {
 	_Bool found;
 	int c;
@@ -6597,7 +6620,7 @@ dkimf_db_mkarray_base(DKIMF_DB db, char ***a, const char **base)
 */
 
 int
-dkimf_db_mkarray(DKIMF_DB db, char ***a, const char **base)
+dkimf_db_mkarray(DKIMF_DB db, char ***a, const char * const *base)
 {
 	_Bool found;
 	int status;

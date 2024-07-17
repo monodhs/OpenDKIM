@@ -534,7 +534,9 @@ which are: (1)
 @LOCAL_SIGNING_CRITERIA_MANELSE@
 which state that
 @LOCAL_SIGNING_CRITERIA_MANENDIF@
-the domain on the From: address (if present) must be listed
+the domain portion of the
+.I query address
+determined for the message must be listed
 @SINGLE_SIGNING_MANIF@
 by the
 .I \-d
@@ -570,16 +572,41 @@ parameter.
 
 @LOCAL_SIGNING_CRITERIA_MANIF@
 For (1) above,
+the
 @LOCAL_SIGNING_CRITERIA_MANELSE@
-Instead of the From: header field,
+The
 @LOCAL_SIGNING_CRITERIA_MANENDIF@
-other header fields may be selected using the SenderHeaders
-configuration parameter.  See
+query address for the message may be obtained by means of the
+.I SenderHeaders
+@SENDER_MACRO_MANIF@
+or
+.I SenderMacro
+@SENDER_MACRO_MANENDIF@
+@DEFAULT_SENDER_MANIF@
+or
+.I DefaultSender
+@DEFAULT_SENDER_MANENDIF@
+configuration
+@SENDER_MACRO_MANIF@
+parameters.
+@SENDER_MACRO_MANELSE@
+@DEFAULT_SENDER_MANIF@
+parameters.
+@DEFAULT_SENDER_MANELSE@
+parameter.
+@DEFAULT_SENDER_MANENDIF@
+@SENDER_MACRO_MANENDIF@
+See
 .I opendkim.conf(5)
 for more information.
 
 @RESIGN_MANIF@
-In order for verifying followed by re-signing to take place,
+In order for verifying followed by re-signing to take
+@LUA_MANIF@
+place outside Lua,
+@LUA_MANELSE@
+place,
+@LUA_MANENDIF@
 at least one of the recipients of the message must be listed
 in the dataset referenced by the
 .I ResignMailTo
@@ -704,6 +731,7 @@ the unprivileged user.
 Also, run-time reloads are not possible if any of the
 other files will not be readable by the unprivileged user.
 @STANDALONE_MANENDIF@
+@DEBUG_FEATURES_MANIF@
 .SH ENVIRONMENT
 The following environment variable(s) can be used to adjust the behaviour
 of this filter:
@@ -711,6 +739,7 @@ of this filter:
 .I DKIM_TMPDIR
 The directory to use when creating temporary files.  The default is
 .I /tmp.
+@DEBUG_FEATURES_MANENDIF@
 .SH NOTES
 When using DNS timeouts (see the
 .I \-T

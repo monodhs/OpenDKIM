@@ -100,6 +100,10 @@ static const char * dsflist[] =
 	"BYPASS_CRITERIA",
 #endif /* !BYPASS_CRITERIA */
 
+#if !defined(REDIRECT_FAILURES)
+	"REDIRECT_FAILURES",
+#endif /* !REDIRECT_FAILURES */
+
 	NULL
 };
 
@@ -309,7 +313,9 @@ dkimf_optlist(FILE *where)
 
 		fprintf(where, "\t\t%s\n", optlist[c]);
 	}
-        fprintf(where, "\t%s\n", LIBOPENDKIM_FEATURE_STRING);
+
+	fprintf(where,
+		"\tlibopendkim " PACKAGE_VERSION ":" LIBOPENDKIM_FEATURE_STRING "\n");
 }
 
 /*
@@ -1297,7 +1303,7 @@ dkimf_dstring_copy(struct dkimf_dstring *dstr, u_char *str)
 */
 
 _Bool
-dkimf_dstring_cat(struct dkimf_dstring *dstr, u_char *str)
+dkimf_dstring_cat(struct dkimf_dstring *dstr, const u_char *str)
 {
 	int len;
 

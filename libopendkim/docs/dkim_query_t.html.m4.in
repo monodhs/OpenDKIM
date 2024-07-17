@@ -1,3 +1,4 @@
+include(DOCGEN_MACROS)dnl
 <html>
 <head><title>dkim_query_t</title></head>
 <body>
@@ -25,8 +26,10 @@
 <ul>
 <li> <tt>DKIM_QUERY_DNS</tt> -- use the DNS TXT record binding defined by
      the DKIM specification (the default)
+@TAS_SUPPORT_DOCIF@
 <li> <tt>DKIM_QUERY_FILE</tt> -- read keys from a local file; intended for
      debugging or experimental use only
+@TAS_SUPPORT_DOCENDIF@
 </ul>
 </td>
 </tr>

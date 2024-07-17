@@ -1,3 +1,4 @@
+include(DOCGEN_MACROS)dnl
 <html>
 <head><title>dkim_getdomain()</title></head>
 <body>
@@ -12,11 +13,11 @@
 <pre>
 #include &lt;dkim.h&gt;
 
-const char * dkim_getdomain(
+const unsigned char * dkim_getdomain(
 	<a href="dkim.html"><tt>DKIM</tt></a> *dkim
 );
 </pre>
-Retrieve the sending domain associated with a message.
+Retrieve either the signer's or author domain associated with a message.
 </td></tr>
 
 <!----------- Description ---------->
@@ -47,13 +48,26 @@ Retrieve the sending domain associated with a message.
 <tr><th valign="top" align=left>RETURN VALUES</th><td>
     <table border="1" cellspacing=0>
     <tr bgcolor="#dddddd"><th>Value</th><th>Description</th></tr>
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
+    <tr valign="top"><td><tt>any</tt></td>
+	<td>The signer's domain for this signing handle.
+	</td></tr>
     <tr valign="top"><td><tt>NULL</tt></td>
-	<td>The sending domain has not or could not be determined
-	    from the message represented by this handle.
+	<td>The author domain has not been or could not be determined
+	    from the message represented by this verifying handle.
 	</td></tr>
     <tr valign="top"><td>otherwise</td>
-	<td>A pointer to the sending domain.
+	<td>A pointer to the author domain for this verifying handle.
 	</td></tr>
+@MANAGE_AUTHOR_IDENTIFIERS_DOCELSE@
+    <tr valign="top"><td>any</td>
+	<td>The argument for the <tt>domain</tt> parameter to the
+	    <a href="dkim_sign.html"><tt>dkim_sign()</tt></a> or
+	    <a href="dkim_verify.html"><tt>dkim_verify()</tt></a>
+	    call that created the <tt>DKIM</tt> object
+	    pointed to by <tt>dkim</tt>.
+	</td></tr>
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
     </table>
 </td></tr>
 
@@ -62,9 +76,18 @@ Retrieve the sending domain associated with a message.
 <th valign="top" align=left>NOTES</th> 
 <td>
 <ul>
-<li> This domain is selected by finding the first "From" header field
+<li>
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
+     This domain is selected by finding the first "From" header field.
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
      Note that it is
-     not guaranteed that this field was included in the set of fields fed
+     not guaranteed that
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
+     this field
+@MANAGE_AUTHOR_IDENTIFIERS_DOCELSE@
+     the first "From" header field
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
+     was included in the set of fields fed
      to the DKIM signature hashes (assuming it was signed), and in any case
      its value may or may not have been valid at the time the message
      was generated.

@@ -131,9 +131,11 @@ dkim_get_key_dns(DKIM *dkim, DKIM_SIGINFO *sig, u_char *buf, size_t buflen)
 	}
 #endif /* QUERY_CACHE */
 
+#if defined(TAS_SUPPORT)
 	/* see if there's a simulated reply queued; if so, use it */
 	anslen = dkim_test_dns_get(dkim, ansbuf, sizeof ansbuf);
 	if (anslen == -1)
+#endif /* TAS_SUPPORT */
 	{
 		anslen = sizeof ansbuf;
 
@@ -403,6 +405,8 @@ dkim_get_key_dns(DKIM *dkim, DKIM_SIGINFO *sig, u_char *buf, size_t buflen)
 	return DKIM_STAT_OK;
 }
 
+#if defined(TAS_SUPPORT)
+
 /*
 **  DKIM_GET_KEY_FILE -- retrieve a DKIM key from a text file (for testing)
 **
@@ -504,3 +508,5 @@ dkim_get_key_file(DKIM *dkim, DKIM_SIGINFO *sig, u_char *buf, size_t buflen)
 
 	return DKIM_STAT_NOKEY;
 }
+
+#endif /* TAS_SUPPORT */

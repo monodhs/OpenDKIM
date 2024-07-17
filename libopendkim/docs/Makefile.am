@@ -116,3 +116,7 @@ dist_doc_DATA = dkim.html \
 	dkim_sig_getcanons.html \
 	dkim_libfeature.html \
 	dns.html
+
+SUFFIXES = .m4
+.m4:
+	$(M4) -D DOCGEN_MACROS="${top_srcdir}/codegen/macros.m4" $< > $@

@@ -137,8 +137,13 @@ struct dkim_siginfo
 	dkim_canon_t		sig_hdrcanonalg;
 	dkim_canon_t		sig_bodycanonalg;
 	uint64_t		sig_timestamp;
+#if defined(DEEP_ARGUMENT_COPIES)
 	u_char *		sig_domain;
 	u_char *		sig_selector;
+#else /* DEEP_ARGUMENT_COPIES */
+	const u_char *		sig_domain;
+	const u_char *		sig_selector;
+#endif /* !DEEP_ARGUMENT_COPIES */
 	u_char *		sig_sig;
 	u_char *		sig_key;
 	u_char *		sig_b64key;
@@ -155,7 +160,9 @@ struct dkim_siginfo
 /* struct dkim_sha -- stuff needed to do a sha hash */
 struct dkim_sha
 {
+#if defined(DEBUG_FEATURES)
 	int			sha_tmpfd;
+#endif /* DEBUG_FEATURES */
 	u_int			sha_outlen;
 	gnutls_hash_hd_t	sha_hd;
 	u_char *		sha_out;
@@ -164,8 +171,10 @@ struct dkim_sha
 /* struct dkim_sha1 -- stuff needed to do a sha1 hash */
 struct dkim_sha1
 {
+#if defined(DEBUG_FEATURES)
 	int			sha1_tmpfd;
 	BIO *			sha1_tmpbio;
+#endif /* DEBUG_FEATURES */
 	SHA_CTX			sha1_ctx;
 	u_char			sha1_out[SHA_DIGEST_LENGTH];
 };
@@ -174,8 +183,10 @@ struct dkim_sha1
 /* struct dkim_sha256 -- stuff needed to do a sha256 hash */
 struct dkim_sha256
 {
+#if defined(DEBUG_FEATURES)
 	int			sha256_tmpfd;
 	BIO *			sha256_tmpbio;
+#endif /* DEBUG_FEATURES */
 	SHA256_CTX		sha256_ctx;
 	u_char			sha256_out[SHA256_DIGEST_LENGTH];
 };
@@ -232,6 +243,8 @@ struct dkim_crypto
 #endif /* USE_GNUTLS */
 };
 
+#if defined(TAS_SUPPORT)
+
 /* struct dkim_test_dns_data -- simulated DNS replies */
 struct dkim_test_dns_data
 {
@@ -242,6 +255,8 @@ struct dkim_test_dns_data
 	u_char *		dns_reply;
 	struct dkim_test_dns_data * dns_next;
 };
+
+#endif /* TAS_SUPPORT */
 
 /* struct dkim_unbound_cb_data -- libunbound callback data */
 struct dkim_unbound_cb_data
@@ -304,22 +319,36 @@ struct dkim
 	ssize_t			dkim_bodylen;
 	ssize_t			dkim_signlen;
 	const u_char *		dkim_id;
+#if defined(DEEP_ARGUMENT_COPIES)
 	u_char *		dkim_domain;
-	u_char *		dkim_user;
 	u_char *		dkim_selector;
+	u_char *		dkim_signer;
+#else /* DEEP_ARGUMENT_COPIES */
+	const u_char *		dkim_domain;
+	const u_char *		dkim_selector;
+	const u_char *		dkim_signer;
+#endif /* !DEEP_ARGUMENT_COPIES */
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
+	u_char *		dkim_sender;
+	u_char *		dkim_user;
+#endif /* MANAGE_AUTHOR_IDENTIFIERS */
 	u_char *		dkim_b64key;
 	u_char *		dkim_b64sig;
+#if defined(DEEP_ARGUMENT_COPIES)
 	u_char *		dkim_key;
+#else /* DEEP_ARGUMENT_COPIES */
+	const u_char *		dkim_key;
+#endif /* !DEEP_ARGUMENT_COPIES */
 	u_char *		dkim_reportaddr;
-	u_char *		dkim_sender;
-	u_char *		dkim_signer;
 #ifdef _FFR_CONDITIONAL
 	u_char *		dkim_conditional;
 #endif /* _FFR_CONDITIONAL */
 	u_char *		dkim_error;
 	u_char *		dkim_hdrlist;
+#if defined(DEBUG_FEATURES)
 	u_char *		dkim_zdecode;
 	u_char *		dkim_tmpdir;
+#endif /* DEBUG_FEATURES */
 	DKIM_SIGINFO *		dkim_signature;
 	void *			dkim_keydata;
 	void *			dkim_closure;
@@ -334,14 +363,18 @@ struct dkim
 	struct dkim_set *	dkim_sigset;
 	struct dkim_header *	dkim_hhead;
 	struct dkim_header *	dkim_htail;
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
 	struct dkim_header *	dkim_senderhdr;
+#endif /* MANAGE_AUTHOR_IDENTIFIERS */
 	struct dkim_canon *	dkim_canonhead;
 	struct dkim_canon *	dkim_canontail;
 	struct dkim_dstring *	dkim_hdrbuf;
 	struct dkim_dstring *	dkim_canonbuf;
 	struct dkim_dstring *	dkim_sslerrbuf;
+#if defined(TAS_SUPPORT)
 	struct dkim_test_dns_data * dkim_dnstesth;
 	struct dkim_test_dns_data * dkim_dnstestt;
+#endif /* TAS_SUPPORT */
 	regex_t *		dkim_hdrre;
 	DKIM_LIB *		dkim_libhandle;
 };
@@ -355,19 +388,21 @@ struct dkim_lib
 	u_int			dkiml_timeout;
 	u_int			dkiml_version;
 	u_int			dkiml_callback_int;
-	u_int			dkiml_flsize;
 	u_int			dkiml_minkeybits;
 	uint32_t		dkiml_flags;
 	uint64_t		dkiml_fixedtime;
 	uint64_t		dkiml_sigttl;
 	uint64_t		dkiml_clockdrift;
 	dkim_query_t		dkiml_querymethod;
+#if defined(SHARED)
+	u_int			dkiml_flsize;
 	u_int *			dkiml_flist;
+#endif /* SHARED */
 	void *			(*dkiml_malloc) (void *closure, size_t nbytes);
 	void			(*dkiml_free) (void *closure, void *p);
-	u_char **		dkiml_requiredhdrs;
-	u_char **		dkiml_oversignhdrs;
-	u_char **		dkiml_mbs;
+	const u_char * const *	dkiml_requiredhdrs;
+	const u_char * const *	dkiml_oversignhdrs;
+	const u_char * const *	dkiml_mbs;
 #ifdef QUERY_CACHE
 	DB *			dkiml_cache;
 #endif /* QUERY_CACHE */
@@ -411,7 +446,9 @@ struct dkim_lib
 				                        size_t *bytes,
 				                        int *error,
 				                        int *dnssec);
+#if defined(DEBUG_FEATURES)
 	u_char			dkiml_tmpdir[MAXPATHLEN + 1];
+#endif /* DEBUG_FEATURES */
 	u_char			dkiml_queryinfo[MAXPATHLEN + 1];
 };
 

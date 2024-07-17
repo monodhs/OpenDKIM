@@ -55,8 +55,10 @@ struct configdef dkimf_config[] =
 #ifdef _FFR_DEFAULT_SENDER
 	{ "DefaultSender",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* _FFR_DEFAULT_SENDER */
+#if defined(DEBUG_FEATURES)
 	{ "Diagnostics",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "DiagnosticDirectory",	CONFIG_TYPE_STRING,	FALSE },
+#endif /* DEBUG_FEATURES */
 	{ "DisableCryptoInit",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "DNSConnect",			CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "DNSTimeout",			CONFIG_TYPE_INTEGER,	FALSE },
@@ -79,7 +81,9 @@ struct configdef dkimf_config[] =
 #ifdef USE_LUA
 	{ "FinalPolicyScript",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* USE_LUA */
+#if defined(FIX_CRLF)
 	{ "FixCRLF",			CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* FIX_CRLF */
 #ifdef _FFR_RATE_LIMIT
 	{ "FlowData",			CONFIG_TYPE_STRING,	FALSE },
 	{ "FlowDataFactor",		CONFIG_TYPE_INTEGER,	FALSE },
@@ -95,7 +99,9 @@ struct configdef dkimf_config[] =
 	{ "InternalHosts",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* LOCAL_SIGNING_CRITERIA */
 	{ "KeepAuthResults",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(DEBUG_FEATURES)
 	{ "KeepTemporaryFiles",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* DEBUG_FEATURES */
 #if defined(SINGLE_SIGNING)
 	{ "KeyFile",			CONFIG_TYPE_STRING,	FALSE },
 	{ "KeyTable",			CONFIG_TYPE_STRING,	FALSE },
@@ -143,12 +149,14 @@ struct configdef dkimf_config[] =
 #if defined(LOCAL_SIGNING_CRITERIA)
 	{ "MTA",			CONFIG_TYPE_STRING,	FALSE },
 #endif /* LOCAL_SIGNING_CRITERIA */
+#if defined(DEBUG_FEATURES)
 	{ "MTACommand",			CONFIG_TYPE_STRING,	FALSE },
+#endif /* DEBUG_FEATURES */
 	{ "MustBeSigned",		CONFIG_TYPE_STRING,	FALSE },
 	{ "Nameservers",		CONFIG_TYPE_STRING,	FALSE },
 	{ "NoHeaderB",			CONFIG_TYPE_BOOLEAN,	FALSE },
 #if defined(STRICT_MODE)
-	{ "NoSenderReplyText",		CONFIG_TYPE_STRING,	FALSE },
+	{ "NoQueryAddressReplyText",	CONFIG_TYPE_STRING,	FALSE },
 #endif /* STRICT_MODE */
 	{ "OmitHeaders",		CONFIG_TYPE_STRING,	FALSE },
 	{ "On-BadSignature",		CONFIG_TYPE_STRING,	FALSE },
@@ -159,7 +167,7 @@ struct configdef dkimf_config[] =
 #if defined(STRICT_MODE)
 	{ "On-MalformedAddress",	CONFIG_TYPE_STRING,	FALSE },
 	{ "On-MalformedMessage",	CONFIG_TYPE_STRING,	FALSE },
-	{ "On-NoSender",		CONFIG_TYPE_STRING,	FALSE },
+	{ "On-NoQueryAddress",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* STRICT_MODE */
 	{ "On-NoSignature",		CONFIG_TYPE_STRING,	FALSE },
 #ifdef _FFR_REPUTATION
@@ -187,7 +195,9 @@ struct configdef dkimf_config[] =
 #ifdef _FFR_RATE_LIMIT
 	{ "RateLimits",			CONFIG_TYPE_STRING,	FALSE },
 #endif /* _FFR_RATE_LIMIT */
+#if defined(REDIRECT_FAILURES)
 	{ "RedirectFailuresTo",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* REDIRECT_FAILURES */
 	{ "RemoveARAll",		CONFIG_TYPE_BOOLEAN,	FALSE },
 	{ "RemoveARFrom",		CONFIG_TYPE_STRING,	FALSE },
 	{ "RemoveOldSignatures",	CONFIG_TYPE_BOOLEAN,	FALSE },
@@ -195,8 +205,10 @@ struct configdef dkimf_config[] =
 	{ "ReplaceHeaders",		CONFIG_TYPE_STRING,	FALSE },
 	{ "ReplaceRules",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* _FFR_REPLACE_RULES */
+#if defined(DEBUG_FEATURES)
 	{ "ReportAddress",		CONFIG_TYPE_STRING,	FALSE },
 	{ "ReportBccAddress",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* DEBUG_FEATURES */
 #ifdef _FFR_REPUTATION
 	{ "ReputationCache",		CONFIG_TYPE_STRING,	FALSE },
 	{ "ReputationCacheTTL",		CONFIG_TYPE_INTEGER,	FALSE },
@@ -220,7 +232,9 @@ struct configdef dkimf_config[] =
 	{ "ReputationTimeout",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "ReputationVerbose", /* DUP */ CONFIG_TYPE_BOOLEAN,	FALSE },
 #endif /* _FFR_REPUTATION */
+#if defined(DEBUG_FEATURES)
 	{ "RequestReports",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* DEBUG_FEATURES */
 	{ "RequiredHeaders",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #if defined(REQUIRE_SAFE_KEYS)
 	{ "RequireSafeKeys",		CONFIG_TYPE_BOOLEAN,	FALSE },
@@ -242,7 +256,9 @@ struct configdef dkimf_config[] =
 #ifdef _FFR_SENDER_MACRO
 	{ "SenderMacro",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* _FFR_SENDER_MACRO */
+#if defined(DEBUG_FEATURES)
 	{ "SendReports",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* DEBUG_FEATURES */
 #if defined(STRICT_MODE)
 	{ "ServiceExceptionReplyText",	CONFIG_TYPE_STRING,	FALSE },
 #endif /* STRICT_MODE */
@@ -257,9 +273,11 @@ struct configdef dkimf_config[] =
 #else /* SINGLE_SIGNING || USE_LUA */
 	{ "SigningTable",		CONFIG_TYPE_STRING,	TRUE  },
 #endif /* !SINGLE_SIGNING && !USE_LUA */
+#if defined(DEBUG_FEATURES)
 #ifdef HAVE_CURL_EASY_STRERROR
 	{ "SMTPURI",			CONFIG_TYPE_STRING,	FALSE },
 #endif /* HAVE_CURL_EASY_STRERROR */
+#endif /* DEBUG_FEATURES */
 	{ "Socket",			CONFIG_TYPE_STRING,	FALSE },
 	{ "SoftwareHeader",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #if defined(USE_ODBX) || defined(USE_LDAP)
@@ -275,7 +293,9 @@ struct configdef dkimf_config[] =
 # endif /* USE_LUA */
 	{ "StatisticsPrefix",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* _FFR_STATS */
+#if defined(STRICT_HEADERS)
 	{ "StrictHeaders",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* STRICT_HEADERS */
 #if defined(PRODUCTION_TESTS)
 	{ "StrictTestMode",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #endif /* PRODUCTION_TESTS */
@@ -286,7 +306,9 @@ struct configdef dkimf_config[] =
 	{ "SyslogFacility",		CONFIG_TYPE_STRING,	FALSE },
 	{ "SyslogName",			CONFIG_TYPE_STRING,	FALSE },
 	{ "SyslogSuccess",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#if defined(DEBUG_FEATURES)
 	{ "TemporaryDirectory",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* DEBUG_FEATURES */
 #if defined(PRODUCTION_TESTS)
 	{ "TestDNSData",		CONFIG_TYPE_STRING,	FALSE },
 	{ "TestPublicKeys",		CONFIG_TYPE_STRING,	FALSE },

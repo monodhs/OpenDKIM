@@ -1,9 +1,10 @@
+include(DOCGEN_MACROS)dnl
 <html>
-<head><title>dkim_sign()</title></head>
+<head><title>dkim_verify()</title></head>
 <body>
 <!--
 -->
-<h1>dkim_sign()</h1>
+<h1>dkim_verify()</h1>
 <p align="right"><a href="index.html">[back to index]</a></p>
 
 <table border="0" cellspacing=4 cellpadding=4>
@@ -11,21 +12,18 @@
 <tr><th valign="top" align=left width=150>SYNOPSIS</th><td>
 <pre>
 #include &lt;dkim.h&gt;
-<a href="dkim.html"><tt>DKIM</tt></a> *dkim_sign(
+<a href="dkim.html"><tt>DKIM</tt></a> *dkim_verify(
 	<a href="dkim_lib.html"><tt>DKIM_LIB</tt></a> *libhandle,
 	const char *id,
 	void *memclosure,
-	const unsigned char *secretkey,
-	const unsigned char *selector,
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
+@MANAGE_AUTHOR_IDENTIFIERS_DOCELSE@
 	const unsigned char *domain,
-	<a href="dkim_canon_t.html"><tt>dkim_canon_t</tt></a> hdrcanon_alg,
-	<a href="dkim_canon_t.html"><tt>dkim_canon_t</tt></a> bodycanon_alg,
-	<a href="dkim_alg_t.html"><tt>dkim_alg_t</tt></a> sign_alg,
-	ssize_t length
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
 	<a href="dkim_stat.html"><tt>DKIM_STAT</tt></a> *statp
 );
 </pre>
-Create a new handle for signing a message.
+Create a new handle for verifying a (possibly) signed message.
 </td></tr>
 
 <!----------- Description ---------->
@@ -33,8 +31,9 @@ Create a new handle for signing a message.
 <table border="1" cellspacing=1 cellpadding=4>
 <tr align="left" valign=top>
 <th width="80">Called When</th>
-<td><tt>dkim_sign()</tt> is called when preparing to process a new message
-    that will be signed later by a private key. </td>
+<td><tt>dkim_verify()</tt> is called when preparing to process a new message
+    that may be signed already in order to be able to verify its contents
+    against the signature. </td>
 </tr>
 </table>
 
@@ -54,36 +53,20 @@ Create a new handle for signing a message.
 	<td>Opaque memory closure, passed directly to the caller-provided
             <tt>malloc()</tt> and/or <tt>free()</tt> replacement functions.
 	</td></tr>
-    <tr valign="top"><td>secretkey</td>
-	<td>The private key to be used when signing this message.  This
-	must be a NULL-terminated string containing either a PEM-formatted
-	private key, or a DER-formatted private key after being encoded
-	with base64.
-	</td></tr>
-    <tr valign="top"><td>selector</td>
-	<td>The name of the selector to be reported in the signature on this
-        message.
-	</td></tr>
+@MANAGE_AUTHOR_IDENTIFIERS_DOCIF@
+@MANAGE_AUTHOR_IDENTIFIERS_DOCELSE@
     <tr valign="top"><td>domain</td>
-	<td>The domain doing the signing; this will be the domain whose DNS
-        will be queried by the verifier for key data.
+	<td>The author domain of this message or the empty string,
+            if no author domain can be determined for the message.
+@DEEP_ARGUMENT_COPIES_DOCIF@
+@DEEP_ARGUMENT_COPIES_DOCELSE@
+            Only a pointer to the author domain is saved,
+            and the caller is responsible
+            for maintaining the object it points to for the entire lifetime
+            of the <tt>DKIM</tt> object created by this call.
+@DEEP_ARGUMENT_COPIES_DOCENDIF@
 	</td></tr>
-    <tr valign="top"><td>hdrcanon_alg</td>
-	<td>The canonicalization algorithm to use when preparing the headers
-	of this message for signing.
-	</td></tr>
-    <tr valign="top"><td>bodycanon_alg</td>
-	<td>The canonicalization algorithm to use when preparing the body
-	of this message for signing.
-	</td></tr>
-    <tr valign="top"><td>sign_alg</td>
-	<td>The signing algorithm to use when generating the signature
-        to be attached to this message.
-	</td></tr>
-    <tr valign="top"><td>length</td>
-	<td>The number of bytes of the body to sign.  A value of -1
-        will cause the entire message to be signed.
-	</td></tr>
+@MANAGE_AUTHOR_IDENTIFIERS_DOCENDIF@
     <tr valign="top"><td>statp</td>
 	<td>Pointer to a <a href="dkim_stat.html"><tt>DKIM_STAT</tt></a>
             object which receives the completion status of this operation.
@@ -96,9 +79,8 @@ Create a new handle for signing a message.
 <th valign="top" align=left>NOTES</th> 
 <td>
 <ul>
-<li><tt>DKIM_STAT_INVALID</tt> can be returned if, for example, a signing
-    handle using SHA256 is requested when the library was not compiled against
-    a version of OpenSSL that had support for that hash algorithm.
+<li>The handle returned by this function may not be used in a later call
+    to <a href="dkim_getsighdr.html"><tt>dkim_getsighdr()</tt></a>.
 </ul>
 </td>
 </tr>
@@ -119,11 +101,10 @@ Create a new handle for signing a message.
 
 <hr size="1">
 <font size="-1">
-Copyright (c) 2005-2007 Sendmail, Inc. and its suppliers.
+Copyright (c) 2005 Sendmail, Inc. and its suppliers.
 All rights reserved.
 <br>
-Copyright (c) 2009-2011, 2014, The Trusted Domain Project.
-All rights reserved.
+Copyright (c) 2009, 2010, The Trusted Domain Project.  All rights reserved.
 
 <br>
 By using this file, you agree to the terms and conditions set

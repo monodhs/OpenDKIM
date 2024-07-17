@@ -65,6 +65,8 @@ extern void dkim_error __P((DKIM *, const char *, ...));
 # define MAXDIGEST		SHA_DIGEST_LENGTH
 #endif /* SHA256_DIGEST_LENGTH */
 
+#if defined(_FFR_ATPS)
+
 /*
 **  DKIM_ATPS_CHECK -- check for Authorized Third Party Signing
 **
@@ -82,7 +84,6 @@ DKIM_STAT
 dkim_atps_check(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
                 dkim_atps_t *res)
 {
-#ifdef _FFR_ATPS
 	int status;
 	int qdcount;
 	int ancount;
@@ -102,8 +103,8 @@ dkim_atps_check(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
 	size_t buflen;
 	size_t anslen;
 	DKIM_LIB *lib;
-	u_char *fdomain;
-	u_char *sdomain;
+	const u_char *fdomain;
+	const u_char *sdomain;
 	u_char *adomain;
 	u_char *txtfound = NULL;
 	u_char *ahash = NULL;
@@ -126,13 +127,11 @@ dkim_atps_check(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
 	u_char b32[DKIM_ATPS_QUERYLENGTH + 1];
 	u_char query[DKIM_MAXHOSTNAMELEN + 1];
 	u_char buf[BUFRSZ + 1];
-#endif /* _FFR_ATPS */
 
 	assert(dkim != NULL);
 	assert(sig != NULL);
 	assert(res != NULL);
 
-#ifdef _FFR_ATPS
 	lib = dkim->dkim_libhandle;
 	sdomain = dkim_sig_getdomain(sig);
 	fdomain = dkim_getdomain(dkim);
@@ -472,10 +471,6 @@ dkim_atps_check(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
 		*res = DKIM_ATPS_NOTFOUND;
 
 	return DKIM_STAT_OK;
-
-#else /* ! _FFR_ATPS */
-
-	return DKIM_STAT_NOTIMPLEMENT;
-
-#endif /* ! _FFR_ATPS */
 }
+
+#endif /* _FFR_ATPS */

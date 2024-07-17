@@ -29,10 +29,12 @@
 extern void *dkim_malloc __P((DKIM_LIB *, void *, size_t));
 extern void dkim_mfree __P((DKIM_LIB *, void *, void *));
 extern unsigned char *dkim_strdup __P((DKIM *, const unsigned char *, size_t));
+#if defined(DEBUG_FEATURES)
 extern DKIM_STAT dkim_tmpfile __P((DKIM *, int *, _Bool));
+#endif /* DEBUG_FEATURES */
 
 extern void dkim_dstring_blank __P((struct dkim_dstring *));
-extern _Bool dkim_dstring_cat __P((struct dkim_dstring *, u_char *));
+extern _Bool dkim_dstring_cat __P((struct dkim_dstring *, const u_char *));
 extern _Bool dkim_dstring_cat1 __P((struct dkim_dstring *, int));
 extern _Bool dkim_dstring_catn __P((struct dkim_dstring *, u_char *, size_t));
 extern _Bool dkim_dstring_copy __P((struct dkim_dstring *, u_char *));

@@ -73,7 +73,7 @@ dkim_repinfo(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
 #endif /* QUERY_CACHE */
 	size_t anslen;
 	DKIM_LIB *lib;
-	u_char *sdomain;
+	const u_char *sdomain;
 	u_char *txtfound = NULL;
 	void *qh;
 	u_char *p;

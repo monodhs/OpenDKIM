@@ -220,7 +220,7 @@ void dkim_error __P((DKIM *, const char *, ...));
 #define DKIM_ISLWSP(x)  ((x) == 011 || (x) == 013 || (x) == 014 || (x) == 040)
 
 /* recommended list of headers to sign, from RFC6376 Section 5.4 */
-const u_char *dkim_should_signhdrs[] =
+const u_char * const dkim_should_signhdrs[] =
 {
 	"from",
 	"reply-to",
@@ -246,7 +246,7 @@ const u_char *dkim_should_signhdrs[] =
 };
 
 /* recommended list of headers not to sign, from RFC6376 Section 5.4 */
-const u_char *dkim_should_not_signhdrs[] =
+const u_char * const dkim_should_not_signhdrs[] =
 {
 	"return-path",
 	"received",
@@ -256,13 +256,23 @@ const u_char *dkim_should_not_signhdrs[] =
 };
 
 /* required list of headers to sign */
-const u_char *dkim_required_signhdrs[] =
+const u_char * const dkim_required_signhdrs[] =
 {
 	"from",
 	NULL
 };
 
 /* ========================= PRIVATE SECTION ========================= */
+
+#if !defined(DEEP_ARGUMENT_COPIES)
+
+static
+const u_char * const dkim_empty_hdrlist[] =
+{
+	NULL
+};
+
+#endif /* !DEEP_ARGUMENT_COPIES */
 
 /*
 **  DKIM_SET_FREE -- destroy a DKIM_SET 
@@ -1304,6 +1314,8 @@ dkim_privkey_load(DKIM *dkim)
 	return DKIM_STAT_OK;
 }
 
+#if defined(REQUIRED_HEADERS_CHECKS)
+
 /*
 **  DKIM_CHECK_REQUIREDHDRS -- see if all requried headers are present
 **
@@ -1322,7 +1334,7 @@ dkim_check_requiredhdrs(DKIM *dkim)
 	int c;
 	size_t len;
 	struct dkim_header *hdr;
-	u_char **required_signhdrs;
+	const u_char * const *required_signhdrs;
 
 	assert(dkim != NULL);
 
@@ -1350,6 +1362,8 @@ dkim_check_requiredhdrs(DKIM *dkim)
 
 	return NULL;
 }
+
+#endif /* REQUIRED_HEADERS_CHECKS */
 
 /*
 **  DKIM_SET_GETUDATA -- retrieve user data associated with a set
@@ -1383,7 +1397,7 @@ dkim_set_getudata(DKIM_SET *set)
 */
 
 static struct dkim_header *
-dkim_get_header(DKIM *dkim, u_char *name, size_t namelen, int inst)
+dkim_get_header(DKIM *dkim, const u_char *name, size_t namelen, int inst)
 {
 	size_t len;
 	struct dkim_header *hdr;
@@ -1523,12 +1537,10 @@ dkim_key_hashok(DKIM_SIGINFO *sig, u_char *hashlist)
 */
 
 static _Bool
-dkim_key_hashesok(DKIM_LIB *lib, u_char *hashlist)
+dkim_key_hashesok(u_char *hashlist)
 {
 	u_char *x, *y;
 	u_char tmp[BUFRSZ + 1];
-
-	assert(lib != NULL);
 
 	if (hashlist == NULL)
 		return TRUE;
@@ -1553,7 +1565,7 @@ dkim_key_hashesok(DKIM_LIB *lib, u_char *hashlist)
 
 				if (hashcode != -1 &&
 				    (hashcode != DKIM_HASHTYPE_SHA256 ||
-				     dkim_libfeature(lib, DKIM_FEATURE_SHA256)))
+				     DKIM_LIBFEATURE(SHA256)))
 					return TRUE;
 			}
 
@@ -1596,7 +1608,7 @@ dkim_sig_hdrlistok(DKIM *dkim, u_char *hdrlist)
 	int nh;
 	u_char *p;
 	u_char **ptrs;
-	u_char **required_signhdrs;;
+	const u_char * const *required_signhdrs;
 	u_char tmp[DKIM_MAXHEADER + 1];
 
 	assert(dkim != NULL);
@@ -2138,27 +2150,21 @@ dkim_siglist_setup(DKIM *dkim)
 				break;
 
 			  case DKIM_SIGN_RSASHA256:
-				if (dkim_libfeature(lib, DKIM_FEATURE_SHA256))
-				{
-					hashtype = DKIM_HASHTYPE_SHA256;
-				}
-				else
-				{
-					dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_A;
-					continue;
-				}
+#if DKIM_LIBFEATURE(SHA256)
+				hashtype = DKIM_HASHTYPE_SHA256;
+#else /* SHA256 */
+				dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_A;
+				continue;
+#endif /* !SHA256 */
 				break;
 
 			  case DKIM_SIGN_ED25519SHA256:
-				if (dkim_libfeature(lib, DKIM_FEATURE_ED25519))
-				{
-					hashtype = DKIM_HASHTYPE_SHA256;
-				}
-				else
-				{
-					dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_A;
-					continue;
-				}
+#if ( DKIM_LIBFEATURE(ED25519) && DKIM_LIBFEATURE(SHA256) )
+				hashtype = DKIM_HASHTYPE_SHA256;
+#else /* ED25519 && SHA256 */
+				dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_A;
+				continue;
+#endif /* !(ED25519 && SHA256) */
 				break;
 
 			  default:
@@ -2458,7 +2464,9 @@ dkim_gensighdr(DKIM *dkim, DKIM_SIGINFO *sig, struct dkim_dstring *dstr,
 	u_char *hash;
 	u_char *v;
 	struct dkim_header *hdr;
+#if defined(DEBUG_FEATURES)
 	u_char tmp[DKIM_MAXHEADER + 1];
+#endif /* DEBUG_FEATURES */
 	u_char b64hash[DKIM_MAXHEADER + 1];
 
 	assert(dkim != NULL);
@@ -2671,7 +2679,11 @@ dkim_gensighdr(DKIM *dkim, DKIM_SIGINFO *sig, struct dkim_dstring *dstr,
 		dkim_dstring_catn(dstr, hdr->hdr_text, hdr->hdr_namelen);
 	}
 
+#if defined(DEEP_ARGUMENT_COPIES)
 	if (dkim->dkim_libhandle->dkiml_oversignhdrs != NULL &&
+#else /* DEEP_ARGUMENT_COPIES */
+	if (
+#endif /* !DEEP_ARGUMENT_COPIES */
 	    dkim->dkim_libhandle->dkiml_oversignhdrs[0] != NULL)
 	{
 		_Bool wrote = FALSE;
@@ -2704,6 +2716,7 @@ dkim_gensighdr(DKIM *dkim, DKIM_SIGINFO *sig, struct dkim_dstring *dstr,
 		}
 	}
 
+#if defined(DEBUG_FEATURES)
 	/* if reports were requested, stick that in too */
 	if (dkim->dkim_libhandle->dkiml_flags & DKIM_LIBFLAGS_REQUESTREPORTS)
 		dkim_dstring_printf(dstr, ";%sr=y", delim);
@@ -2779,6 +2792,7 @@ dkim_gensighdr(DKIM *dkim, DKIM_SIGINFO *sig, struct dkim_dstring *dstr,
 				dkim_dstring_catn(dstr, tmp, (size_t) len);
 		}
 	}
+#endif /* DEBUG_FEATURES */
 
 	/* and finally, an empty b= */
 	dkim_dstring_cat1(dstr, ';');
@@ -2787,6 +2801,8 @@ dkim_gensighdr(DKIM *dkim, DKIM_SIGINFO *sig, struct dkim_dstring *dstr,
 
 	return dkim_dstring_len(dstr);
 }
+
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
 
 /*
 **  DKIM_GETSENDER -- determine sender and store it in the handle
@@ -2862,6 +2878,8 @@ dkim_getsender(DKIM *dkim)
 
 	return DKIM_STAT_OK;
 }
+
+#endif /* MANAGE_AUTHOR_IDENTIFIERS */
 
 /*
 **  DKIM_GET_KEY -- acquire a public key used for verification
@@ -2997,12 +3015,14 @@ dkim_get_key(DKIM *dkim, DKIM_SIGINFO *sig, _Bool test)
 				return (DKIM_STAT) status;
 			break;
 
+#if defined(TAS_SUPPORT)
 		  case DKIM_QUERY_FILE:
 			status = (int) dkim_get_key_file(dkim, sig, buf,
 			                                 sizeof buf);
 			if (status != (int) DKIM_STAT_OK)
 				return (DKIM_STAT) status;
 			break;
+#endif /* TAS_SUPPORT */
 
 		  default:
 			assert(0);
@@ -3050,7 +3070,7 @@ dkim_get_key(DKIM *dkim, DKIM_SIGINFO *sig, _Bool test)
 
 	/* then make sure the hash type is something we can handle */
 	p = dkim_param_get(set, (u_char *) "h");
-	if (!dkim_key_hashesok(dkim->dkim_libhandle, p))
+	if (!dkim_key_hashesok(p))
 	{
 		dkim_error(dkim, "unknown hash '%s'", p);
 		sig->sig_error = DKIM_SIGERROR_KEYUNKNOWNHASH;
@@ -3144,6 +3164,8 @@ dkim_get_key(DKIM *dkim, DKIM_SIGINFO *sig, _Bool test)
 
 	return DKIM_STAT_OK;
 }
+
+#if defined(STRICT_HEADERS)
 
 /*
 **  DKIM_HEADERCHECK -- check header validity
@@ -3302,6 +3324,8 @@ dkim_headercheck(DKIM *dkim)
 	return TRUE;
 }
 
+#endif /* STRICT_HEADERS */
+
 /*
 **  DKIM_EOH_SIGN -- declare end-of-headers; prepare for signing
 ** 
@@ -3315,9 +3339,13 @@ dkim_headercheck(DKIM *dkim)
 static DKIM_STAT
 dkim_eoh_sign(DKIM *dkim)
 {
+#if defined(DEBUG_FEATURES)
 	_Bool keep;
 	_Bool tmp;
-	u_char *hn = NULL;
+#endif /* DEBUG_FEATURES */
+#if defined(REQUIRED_HEADERS_CHECKS)
+	const u_char *hn = NULL;
+#endif /* REQUIRED_HEADERS_CHECKS */
 	DKIM_STAT status;
 	int hashtype = DKIM_HASHTYPE_UNKNOWN;
 	DKIM_CANON *bc;
@@ -3339,30 +3367,36 @@ dkim_eoh_sign(DKIM *dkim)
 	lib = dkim->dkim_libhandle;
 	assert(lib != NULL);
 
+#if defined(DEBUG_FEATURES)
 	tmp = ((lib->dkiml_flags & DKIM_LIBFLAGS_TMPFILES) != 0);
 	keep = ((lib->dkiml_flags & DKIM_LIBFLAGS_KEEPFILES) != 0);
+#endif /* DEBUG_FEATURES */
 
 	dkim->dkim_version = lib->dkiml_version;
 
+#if defined(STRICT_HEADERS)
 	/* check for header validity */
 	if (!dkim_headercheck(dkim))
 	{
 		dkim->dkim_state = DKIM_STATE_UNUSABLE;
 		return DKIM_STAT_SYNTAX;
 	}
+#endif /* STRICT_HEADERS */
 
+#if defined(REQUIRED_HEADERS_CHECKS)
 	/*
 	**  Verify that all the required headers are present and
 	**  marked for signing.
 	*/
 
-	hn = (u_char *) dkim_check_requiredhdrs(dkim);
+	hn = dkim_check_requiredhdrs(dkim);
 	if (hn != NULL)
 	{
 		dkim_error(dkim, "required header \"%s\" not found", hn);
 		dkim->dkim_state = DKIM_STATE_UNUSABLE;
 		return DKIM_STAT_SYNTAX;
 	}
+#endif /* REQUIRED_HEADERS_CHECKS */
 
 	/* determine hash type */
 	switch (dkim->dkim_signalg)
@@ -3439,7 +3473,11 @@ dkim_eoh_sign(DKIM *dkim)
 	}
 
 	/* initialize all canonicalizations */
+#if defined(DEBUG_FEATURES)
 	status = dkim_canon_init(dkim, tmp, keep);
+#else /* DEBUG_FEATURES */
+	status = dkim_canon_init(dkim);
+#endif /* !DEBUG_FEATURES */
 	if (status != DKIM_STAT_OK)
 		return status;
 
@@ -3464,8 +3502,10 @@ dkim_eoh_sign(DKIM *dkim)
 static DKIM_STAT
 dkim_eoh_verify(DKIM *dkim)
 {
+#if defined(DEBUG_FEATURES)
 	_Bool keep;
 	_Bool tmp;
+#endif /* DEBUG_FEATURES */
 	_Bool bsh;
 	DKIM_STAT status;
 	int c;
@@ -3483,9 +3523,12 @@ dkim_eoh_verify(DKIM *dkim)
 	assert(lib != NULL);
 
 	bsh = ((lib->dkiml_flags & DKIM_LIBFLAGS_BADSIGHANDLES) != 0);
+#if defined(DEBUG_FEATURES)
 	tmp = ((lib->dkiml_flags & DKIM_LIBFLAGS_TMPFILES) != 0);
 	keep = ((lib->dkiml_flags & DKIM_LIBFLAGS_KEEPFILES) != 0);
+#endif /* DEBUG_FEATURES */
 
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
 	/* populate some stuff like dkim_sender, dkim_domain, dkim_user */
 	status = dkim_getsender(dkim);
 	if (status != DKIM_STAT_OK && !bsh)
@@ -3493,13 +3536,16 @@ dkim_eoh_verify(DKIM *dkim)
 		dkim->dkim_state = DKIM_STATE_UNUSABLE;
 		return status;
 	}
+#endif /* MANAGE_AUTHOR_IDENTIFIERS */
 
+#if defined(STRICT_HEADERS)
 	/* check for header validity */
 	if (!dkim_headercheck(dkim))
 	{
 		dkim->dkim_state = DKIM_STATE_UNUSABLE;
 		return DKIM_STAT_SYNTAX;
 	}
+#endif /* STRICT_HEADERS */
 
 	/* allocate the siginfo array if not already done */
 	if (dkim->dkim_siglist == NULL)
@@ -3525,7 +3571,11 @@ dkim_eoh_verify(DKIM *dkim)
 			return status;
 
 		/* initialize all discovered canonicalizations */
+#if defined(DEBUG_FEATURES)
 		status = dkim_canon_init(dkim, tmp, keep);
+#else /* DEBUG_FEATURES */
+		status = dkim_canon_init(dkim);
+#endif /* !DEBUG_FEATURES */
 		if (status != DKIM_STAT_OK)
 			return status;
 	}
@@ -3730,14 +3780,15 @@ dkim_eom_sign(DKIM *dkim)
 	{
 		_Bool found = FALSE;
 		int c;
-		char *hn;
+#if defined(REQUIRED_HEADERS_CHECKS)
+		const u_char *hn;
 
 		/*
 		**  Verify that all the required headers are present and
 		**  marked for signing.
 		*/
 
-		hn = (u_char *) dkim_check_requiredhdrs(dkim);
+		hn = dkim_check_requiredhdrs(dkim);
 		if (hn != NULL)
 		{
 			dkim_error(dkim, "required header \"%s\" not found",
@@ -3745,6 +3796,7 @@ dkim_eom_sign(DKIM *dkim)
 			dkim->dkim_state = DKIM_STATE_UNUSABLE;
 			return DKIM_STAT_SYNTAX;
 		}
+#endif /* REQUIRED_HEADERS_CHECKS */
 
 		/*
 		**  Fail if the verification handle didn't work.  For a
@@ -3845,8 +3897,7 @@ dkim_eom_sign(DKIM *dkim)
 
 		if (sig->sig_hashtype == DKIM_HASHTYPE_SHA256)
 		{
-			assert(dkim_libfeature(dkim->dkim_libhandle,
-		                               DKIM_FEATURE_SHA256));
+			assert(DKIM_LIBFEATURE(SHA256));
 		}
 
 		sig->sig_signature = (void *) dkim->dkim_keydata;
@@ -3956,8 +4007,7 @@ dkim_eom_sign(DKIM *dkim)
 
 		nid = NID_sha1;
 
-		if (dkim_libfeature(dkim->dkim_libhandle,
-		                    DKIM_FEATURE_SHA256) &&
+		if (DKIM_LIBFEATURE(SHA256) &&
 		    sig->sig_hashtype == DKIM_HASHTYPE_SHA256)
 			nid = NID_sha256;
 
@@ -4097,7 +4147,6 @@ dkim_eom_verify(DKIM *dkim, _Bool *testkey)
 	int c;
 	int status;
 	DKIM_SIGINFO *sig = NULL;
-	struct dkim_header *hdr;
 	DKIM_LIB *lib;
 
 	assert(dkim != NULL);
@@ -4121,8 +4170,10 @@ dkim_eom_verify(DKIM *dkim, _Bool *testkey)
 
 	if (dkim->dkim_sigcount == 0)
 	{					/* unsigned */
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
 		if (dkim->dkim_domain == NULL)
 		{
+			struct dkim_header *hdr;
 			u_char *domain;
 			u_char *user;
 
@@ -4155,6 +4206,7 @@ dkim_eom_verify(DKIM *dkim, _Bool *testkey)
 			if (dkim->dkim_domain == NULL)
 				return DKIM_STAT_NORESOURCE;
 		}
+#endif /* MANAGE_AUTHOR_IDENTIFIERS */
 
 		dkim->dkim_state = DKIM_STATE_EOM2;
 
@@ -4387,7 +4439,9 @@ dkim_new(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 	new->dkim_margin = (size_t) DKIM_HDRMARGIN;
 	new->dkim_closure = memclosure;
 	new->dkim_libhandle = libhandle;
+#if defined(DEBUG_FEATURES)
 	new->dkim_tmpdir = libhandle->dkiml_tmpdir;
+#endif /* DEBUG_FEATURES */
 	new->dkim_timeout = libhandle->dkiml_timeout;
 
 	*statp = DKIM_STAT_OK;
@@ -4478,7 +4532,9 @@ DKIM_LIB *
 dkim_init(void *(*caller_mallocf)(void *closure, size_t nbytes),
           void (*caller_freef)(void *closure, void *p))
 {
+#if defined(DEBUG_FEATURES)
 	u_char *td;
+#endif /* DEBUG_FEATURES */
 	DKIM_LIB *libhandle;
 
 #ifndef USE_GNUTLS
@@ -4491,24 +4547,35 @@ dkim_init(void *(*caller_mallocf)(void *closure, size_t nbytes),
 	if (libhandle == NULL)
 		return NULL;
 
+#if defined(DEBUG_FEATURES)
 	td = (u_char *) getenv("DKIM_TMPDIR");
 	if (td == NULL || td[0] == '\0')
 		td = (u_char *) DEFTMPDIR;
+#endif /* DEBUG_FEATURES */
 
 	libhandle->dkiml_signre = FALSE;
 	libhandle->dkiml_skipre = FALSE;
 	libhandle->dkiml_malloc = caller_mallocf;
 	libhandle->dkiml_free = caller_freef;
+#if defined(DEBUG_FEATURES)
 	strlcpy((char *) libhandle->dkiml_tmpdir, (char *) td, 
 	        sizeof libhandle->dkiml_tmpdir);
+#endif /* DEBUG_FEATURES */
 	libhandle->dkiml_flags = DKIM_LIBFLAGS_DEFAULT;
 	libhandle->dkiml_timeout = DEFTIMEOUT;
-	libhandle->dkiml_requiredhdrs = (u_char **) dkim_required_signhdrs;
+	libhandle->dkiml_requiredhdrs = dkim_required_signhdrs;
+#if defined(DEEP_ARGUMENT_COPIES)
 	libhandle->dkiml_oversignhdrs = NULL;
 	libhandle->dkiml_mbs = NULL;
+#else /* DEEP_ARGUMENT_COPIES */
+	libhandle->dkiml_oversignhdrs = dkim_empty_hdrlist;
+	libhandle->dkiml_mbs = dkim_empty_hdrlist;
+#endif /* !DEEP_ARGUMENT_COPIES */
 	libhandle->dkiml_querymethod = DKIM_QUERY_UNKNOWN;
+#if defined(TAS_SUPPORT)
 	memset(libhandle->dkiml_queryinfo, '\0',
 	       sizeof libhandle->dkiml_queryinfo);
+#endif /* TAS_SUPPORT */
 #ifdef QUERY_CACHE
 	libhandle->dkiml_cache = NULL;
 #endif /* QUERY_CACHE */
@@ -4531,7 +4598,9 @@ dkim_init(void *(*caller_mallocf)(void *closure, size_t nbytes),
 	libhandle->dkiml_dns_start = dkim_res_query;
 	libhandle->dkiml_dns_cancel = dkim_res_cancel;
 	libhandle->dkiml_dns_waitreply = dkim_res_waitreply;
-	
+
+#if defined(SHARED)
+
 #define FEATURE_INDEX(x)	((x) / (8 * sizeof(u_int)))
 #define FEATURE_OFFSET(x)	((x) % (8 * sizeof(u_int)))
 #define FEATURE_ADD(lib,x)	(lib)->dkiml_flist[FEATURE_INDEX((x))] |= (1 << FEATURE_OFFSET(x))
@@ -4573,6 +4642,8 @@ dkim_init(void *(*caller_mallocf)(void *closure, size_t nbytes),
 	FEATURE_ADD(libhandle, DKIM_FEATURE_CONDITIONAL);
 #endif /* _FFR_CONDITIONAL */
 
+#endif /* SHARED */
+
 	return libhandle;
 }
 
@@ -4602,16 +4673,20 @@ dkim_close(DKIM_LIB *lib)
 	if (lib->dkiml_signre)
 		(void) regfree(&lib->dkiml_hdrre);
 
+#if defined(DEEP_ARGUMENT_COPIES)
 	if (lib->dkiml_oversignhdrs != NULL)
 		dkim_clobber_array((char **) lib->dkiml_oversignhdrs);
 
-	if (lib->dkiml_requiredhdrs != (u_char **) dkim_required_signhdrs)
+	if (lib->dkiml_requiredhdrs != dkim_required_signhdrs)
 		dkim_clobber_array((char **) lib->dkiml_requiredhdrs);
 
 	if (lib->dkiml_mbs != NULL)
 		dkim_clobber_array((char **) lib->dkiml_mbs);
+#endif /* DEEP_ARGUMENT_COPIES */
 
+#if defined(SHARED)
 	free(lib->dkiml_flist);
+#endif /* SHARED */
 
 	if (lib->dkiml_dns_close != NULL && lib->dkiml_dns_service != NULL)
 		lib->dkiml_dns_close(lib->dkiml_dns_service);
@@ -4715,6 +4790,7 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 
 	switch (opt)
 	{
+#if defined(DEBUG_FEATURES)
 	  case DKIM_OPTS_TMPDIR:
 		if (op == DKIM_OP_GETOPT)
 		{
@@ -4731,6 +4807,7 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 			        sizeof lib->dkiml_tmpdir);
 		}
 		return DKIM_STAT_OK;
+#endif /* DEBUG_FEATURES */
 
 	  case DKIM_OPTS_FIXEDTIME:
 		if (ptr == NULL)
@@ -4826,23 +4903,28 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 		}
 		else if (ptr == NULL)
 		{
-			if (lib->dkiml_requiredhdrs != (u_char **) dkim_required_signhdrs)
+#if defined(DEEP_ARGUMENT_COPIES)
+			if (lib->dkiml_requiredhdrs != dkim_required_signhdrs)
 				dkim_clobber_array((char **) lib->dkiml_requiredhdrs);
-
-			lib->dkiml_requiredhdrs = (u_char **) dkim_required_signhdrs;
+#endif /* DEEP_ARGUMENT_COPIES */
+			lib->dkiml_requiredhdrs = dkim_required_signhdrs;
 		}
 		else
 		{
+#if defined(DEEP_ARGUMENT_COPIES)
 			const char **tmp;
 
 			tmp = dkim_copy_array(ptr);
 			if (tmp == NULL)
 				return DKIM_STAT_NORESOURCE;
 
-			if (lib->dkiml_requiredhdrs != (u_char **) dkim_required_signhdrs)
+			if (lib->dkiml_requiredhdrs != dkim_required_signhdrs)
 				dkim_clobber_array((char **) lib->dkiml_requiredhdrs);
 
-			lib->dkiml_requiredhdrs = (u_char **) tmp;
+			lib->dkiml_requiredhdrs = (const u_char * const *) tmp;
+#else /* DEEP_ARGUMENT_COPIES */
+			lib->dkiml_requiredhdrs = (const u_char * const *) ptr;
+#endif /* !DEEP_ARGUMENT_COPIES */
 		}
 		return DKIM_STAT_OK;
 
@@ -4856,12 +4938,17 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 		}
 		else if (ptr == NULL)
 		{
+#if defined(DEEP_ARGUMENT_COPIES)
 			if (lib->dkiml_oversignhdrs != NULL)
 				dkim_clobber_array((char **) lib->dkiml_oversignhdrs);
 			lib->dkiml_oversignhdrs = NULL;
+#else /* DEEP_ARGUMENT_COPIES */
+			lib->dkiml_oversignhdrs = dkim_empty_hdrlist;
+#endif /* !DEEP_ARGUMENT_COPIES */
 		}
 		else
 		{
+#if defined(DEEP_ARGUMENT_COPIES)
 			const char **tmp;
 
 			tmp = dkim_copy_array(ptr);
@@ -4871,7 +4958,10 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 			if (lib->dkiml_oversignhdrs != NULL)
 				dkim_clobber_array((char **) lib->dkiml_oversignhdrs);
 
-			lib->dkiml_oversignhdrs = (u_char **) tmp;
+			lib->dkiml_oversignhdrs = (const u_char * const *) tmp;
+#else /* DEEP_ARGUMENT_COPIES */
+			lib->dkiml_oversignhdrs = (const u_char * const *) ptr;
+#endif /* !DEEP_ARGUMENT_COPIES */
 		}
 		return DKIM_STAT_OK;
 
@@ -4885,13 +4975,18 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 		}
 		else if (ptr == NULL)
 		{
+#if defined(DEEP_ARGUMENT_COPIES)
 			if (lib->dkiml_mbs != NULL)
 				dkim_clobber_array((char **) lib->dkiml_mbs);
 
 			lib->dkiml_mbs = NULL;
+#else /* DEEP_ARGUMENT_COPIES */
+			lib->dkiml_mbs = dkim_empty_hdrlist;
+#endif /* !DEEP_ARGUMENT_COPIES */
 		}
 		else
 		{
+#if defined(DEEP_ARGUMENT_COPIES)
 			const char **tmp;
 
 			tmp = dkim_copy_array(ptr);
@@ -4901,7 +4996,10 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 			if (lib->dkiml_mbs != NULL)
 				dkim_clobber_array((char **) lib->dkiml_mbs);
 
-			lib->dkiml_mbs = (u_char **) tmp;
+			lib->dkiml_mbs = (const u_char * const *) tmp;
+#else /* DEEP_ARGUMENT_COPIES */
+			lib->dkiml_mbs = (const u_char * const *) ptr;
+#endif /* !DEEP_ARGUMENT_COPIES */
 		}
 		return DKIM_STAT_OK;
 
@@ -4921,8 +5019,8 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 		else
 		{
 			int status;
-			u_char **hdrs;
-			u_char **required_signhdrs;
+			const u_char * const *hdrs;
+			const u_char * const *required_signhdrs;
 			char buf[BUFRSZ + 1];
 
 			if (lib->dkiml_signre)
@@ -4933,13 +5031,13 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 
 			memset(buf, '\0', sizeof buf);
 
-			hdrs = (u_char **) ptr;
+			hdrs = (const u_char * const *) ptr;
 
 			(void) strlcpy(buf, "^(", sizeof buf);
 
 			required_signhdrs = lib->dkiml_requiredhdrs;
 			if (!dkim_hdrlist((u_char *) buf, sizeof buf,
-			                  (u_char **) required_signhdrs, TRUE))
+			                  required_signhdrs, TRUE))
 				return DKIM_STAT_INVALID;
 			if (!dkim_hdrlist((u_char *) buf, sizeof buf,
 			                  hdrs, FALSE))
@@ -4973,7 +5071,7 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 		else
 		{
 			int status;
-			u_char **hdrs;
+			const u_char * const *hdrs;
 			char buf[BUFRSZ + 1];
 
 			if (lib->dkiml_skipre)
@@ -4984,7 +5082,7 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 
 			memset(buf, '\0', sizeof buf);
 
-			hdrs = (u_char **) ptr;
+			hdrs = (const u_char * const *) ptr;
 
 			(void) strlcpy(buf, "^(", sizeof buf);
 
@@ -5018,6 +5116,7 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 
 		return DKIM_STAT_OK;
 
+#if defined(TAS_SUPPORT)
 	  case DKIM_OPTS_QUERYINFO:
 		if (ptr == NULL)
 			return DKIM_STAT_INVALID;
@@ -5032,6 +5131,7 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 			        sizeof lib->dkiml_queryinfo);
 		}
 		return DKIM_STAT_OK;
+#endif /* TAS_SUPPORT */
 
 	  default:
 		return DKIM_STAT_INVALID;
@@ -5198,14 +5298,20 @@ dkim_free(DKIM *dkim)
 	dkim_canon_cleanup(dkim);
 
 	CLOBBER(dkim->dkim_b64sig);
+#if defined(DEEP_ARGUMENT_COPIES)
+	CLOBBER(dkim->dkim_key);
 	CLOBBER(dkim->dkim_selector);
 	CLOBBER(dkim->dkim_domain);
-	CLOBBER(dkim->dkim_user);
-	CLOBBER(dkim->dkim_key);
-	CLOBBER(dkim->dkim_sender);
 	CLOBBER(dkim->dkim_signer);
+#endif /* DEEP_ARGUMENT_COPIES */
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
+	CLOBBER(dkim->dkim_user);
+	CLOBBER(dkim->dkim_sender);
+#endif /* MANAGE_AUTHOR_IDENTIFIERS */
 	CLOBBER(dkim->dkim_error);
+#if defined(DEBUG_FEATURES)
 	CLOBBER(dkim->dkim_zdecode);
+#endif /* DEBUG_FEATURES */
 	CLOBBER(dkim->dkim_hdrlist);
 
 	DSTRING_CLOBBER(dkim->dkim_hdrbuf);
@@ -5261,22 +5367,19 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
                signalg == DKIM_SIGN_ED25519SHA256);
 	assert(statp != NULL);
 
-	if (dkim_libfeature(libhandle, DKIM_FEATURE_SHA256))
+#if DKIM_LIBFEATURE(SHA256)
+	if (signalg == DKIM_SIGN_DEFAULT)
+		signalg = DKIM_SIGN_RSASHA256;
+#else /* SHA256 */
+	if (signalg == DKIM_SIGN_RSASHA256)
 	{
-		if (signalg == DKIM_SIGN_DEFAULT)
-			signalg = DKIM_SIGN_RSASHA256;
+		*statp = DKIM_STAT_INVALID;
+		return NULL;
 	}
-	else
-	{
-		if (signalg == DKIM_SIGN_RSASHA256)
-		{
-			*statp = DKIM_STAT_INVALID;
-			return NULL;
-		}
 
-		if (signalg == DKIM_SIGN_DEFAULT)
-			signalg = DKIM_SIGN_RSASHA1;
-	}
+	if (signalg == DKIM_SIGN_DEFAULT)
+		signalg = DKIM_SIGN_RSASHA1;
+#endif /* !SHA256 */
 
 	if (!dkim_strisprint((u_char *) domain) ||
 	    !dkim_strisprint((u_char *) selector))
@@ -5292,16 +5395,17 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 	{
 		new->dkim_mode = DKIM_MODE_SIGN;
 
+#if defined(DEEP_ARGUMENT_COPIES)
 		/* do DER decoding here if needed */
 		if (strncmp((char *) secretkey, "MII", 3) == 0)
 		{
 			size_t b64len;
+			u_char *dkey;
 
 			b64len = strlen((char *) secretkey);
 
-			new->dkim_key = (unsigned char *) DKIM_MALLOC(new,
-			                                              b64len);
-			if (new->dkim_key == NULL)
+			dkey = (u_char *) DKIM_MALLOC(new, b64len);
+			if (dkey == NULL)
 			{
 				*statp = DKIM_STAT_NORESOURCE;
 				dkim_free(new);
@@ -5309,7 +5413,7 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 			}
 
 			new->dkim_keylen = dkim_base64_decode(secretkey,
-			                                      new->dkim_key,
+			                                      dkey,
 			                                      b64len);
 			if (new->dkim_keylen <= 0)
 			{
@@ -5317,10 +5421,13 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 				dkim_free(new);
 				return NULL;
 			}
+			new->dkim_key = dkey;
 		}
 		else
+#endif /* DEEP_ARGUMENT_COPIES */
 		{
 			new->dkim_keylen = strlen((const char *) secretkey);
+#if defined(DEEP_ARGUMENT_COPIES)
 			new->dkim_key = dkim_strdup(new, secretkey, 0);
 
 			if (new->dkim_key == NULL)
@@ -5329,10 +5436,18 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 				dkim_free(new);
 				return NULL;
 			}
+#else /* DEEP_ARGUMENT_COPIES */
+			new->dkim_key = secretkey;
+#endif /* !DEEP_ARGUMENT_COPIES */
 		}
 
+#if defined(DEEP_ARGUMENT_COPIES)
 		new->dkim_selector = dkim_strdup(new, selector, 0);
 		new->dkim_domain = dkim_strdup(new, domain, 0);
+#else /* DEEP_ARGUMENT_COPIES */
+		new->dkim_selector = selector;
+		new->dkim_domain = domain;
+#endif /* !DEEP_ARGUMENT_COPIES */
 		if (length == (ssize_t) -1)
 		{
 			new->dkim_signlen = ULONG_MAX;
@@ -5354,6 +5469,7 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 **  	libhandle -- DKIM_LIB handle
 **  	id -- identification string (e.g. job ID) for logging
 **  	memclosure -- memory closure for allocations (or NULL)
+**  	domain -- author domain of this message
 **  	statp -- status (returned)
 **
 **  Return value:
@@ -5362,21 +5478,39 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 
 DKIM *
 dkim_verify(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
+#if !defined(MANAGE_AUTHOR_IDENTIFIERS)
+            const unsigned char *domain,
+#endif /* !MANAGE_AUTHOR_IDENTIFIERS */
             DKIM_STAT *statp)
 {
 	DKIM *new;
 
 	assert(libhandle != NULL);
+#if !defined(MANAGE_AUTHOR_IDENTIFIERS)
+	assert(domain != NULL);
+#endif /* !MANAGE_AUTHOR_IDENTIFIERS */
 	assert(statp != NULL);
 
 	new = dkim_new(libhandle, id, memclosure, DKIM_CANON_UNKNOWN,
 	               DKIM_CANON_UNKNOWN, DKIM_SIGN_UNKNOWN, statp);
 
 	if (new != NULL)
+	{
 		new->dkim_mode = DKIM_MODE_VERIFY;
+
+#if !defined(MANAGE_AUTHOR_IDENTIFIERS)
+#if defined(DEEP_ARGUMENT_COPIES)
+		new->dkim_domain = dkim_strdup(new, domain, 0);
+#else /* DEEP_ARGUMENT_COPIES */
+		new->dkim_domain = domain;
+#endif /* !DEEP_ARGUMENT_COPIES */
+#endif /* !MANAGE_AUTHOR_IDENTIFIERS */
+	}
 
 	return new;
 }
+
+#if defined(_FFR_RESIGN)
 
 /*
 **  DKIM_RESIGN -- bind a new signing handle to a completed handle
@@ -5399,9 +5533,10 @@ dkim_verify(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 DKIM_STAT
 dkim_resign(DKIM *new, DKIM *old, _Bool hdrbind)
 {
-#ifdef _FFR_RESIGN
+#if defined(DEBUG_FEATURES)
 	_Bool keep;
 	_Bool tmp;
+#endif /* DEBUG_FEATURES */
 	DKIM_STAT status;
 	int hashtype = DKIM_HASHTYPE_UNKNOWN;
 	DKIM_CANON *bc;
@@ -5433,8 +5568,10 @@ dkim_resign(DKIM *new, DKIM *old, _Bool hdrbind)
 	lib = old->dkim_libhandle;
 	assert(lib != NULL);
 
+#if defined(DEBUG_FEATURES)
 	tmp = ((lib->dkiml_flags & DKIM_LIBFLAGS_TMPFILES) != 0);
 	keep = ((lib->dkiml_flags & DKIM_LIBFLAGS_KEEPFILES) != 0);
+#endif /* DEBUG_FEATURES */
 
 	new->dkim_version = lib->dkiml_version;
 
@@ -5508,12 +5645,12 @@ dkim_resign(DKIM *new, DKIM *old, _Bool hdrbind)
 
 	if (new->dkim_hdrbind)
 	{
-		_Bool keep;
-
-		keep = ((lib->dkiml_flags & DKIM_LIBFLAGS_KEEPFILES) != 0);
-
 		/* initialize all canonicalizations */
+#if defined(DEBUG_FEATURES)
 		status = dkim_canon_init(new, tmp, keep);
+#else /* DEBUG_FEATURES */
+		status = dkim_canon_init(new);
+#endif /* !DEBUG_FEATURES */
 		if (status != DKIM_STAT_OK)
 			return status;
 
@@ -5524,10 +5661,9 @@ dkim_resign(DKIM *new, DKIM *old, _Bool hdrbind)
 	}
 
 	return DKIM_STAT_OK;
-#else /* _FFR_RESIGN */
-	return DKIM_STAT_NOTIMPLEMENT;
-#endif /* _FFR_RESIGN */
 }
+
+#endif /* _FFR_RESIGN */
 
 /*
 **  DKIM_SIG_PROCESS -- process a signature
@@ -5710,8 +5846,7 @@ dkim_sig_process(DKIM *dkim, DKIM_SIGINFO *sig)
 		                                  &crypto->crypto_digest,
 		                                  &crypto->crypto_sig);
 # else /* GNUTLS_VERSION_MAJOR == 2 */
-		hash = dkim_libfeature(dkim->dkim_libhandle,
-		                       DKIM_FEATURE_SHA256);
+		hash = DKIM_LIBFEATURE(SHA256);
 		hash = (hash && sig->sig_hashtype == DKIM_HASHTYPE_SHA256)
 		       ? GNUTLS_DIG_SHA256
 		       : GNUTLS_DIG_SHA1;
@@ -5857,8 +5992,7 @@ dkim_sig_process(DKIM *dkim, DKIM_SIGINFO *sig)
 
 			nid = NID_sha1;
 
-			if (dkim_libfeature(dkim->dkim_libhandle,
-			                    DKIM_FEATURE_SHA256) &&
+			if (DKIM_LIBFEATURE(SHA256) &&
 			    sig->sig_hashtype == DKIM_HASHTYPE_SHA256)
 				nid = NID_sha256;
 
@@ -5949,7 +6083,9 @@ dkim_sig_process(DKIM *dkim, DKIM_SIGINFO *sig)
 	**  cover a must-be-signed header which was present.
 	*/
 
+#if defined(DEEP_ARGUMENT_COPIES)
 	if (dkim->dkim_libhandle->dkiml_mbs != NULL)
+#endif /* DEEP_ARGUMENT_COPIES */
 	{
 		int c;
 
@@ -6029,6 +6165,8 @@ dkim_sig_process(DKIM *dkim, DKIM_SIGINFO *sig)
 
 	return DKIM_STAT_OK;
 }
+
+#if defined(DEBUG_FEATURES)
 
 /*
 **  DKIM_OHDRS -- extract and decode original headers
@@ -6154,6 +6292,10 @@ dkim_ohdrs(DKIM *dkim, DKIM_SIGINFO *sig, u_char **ptrs, int *pcnt)
 	return DKIM_STAT_OK;
 }
 
+#endif /* DEBUG_FEATURES */
+
+#if defined(_FFR_DIFFHEADERS)
+
 /*
 **  DKIM_DIFFHEADERS -- compare original headers with received headers
 **
@@ -6179,7 +6321,6 @@ dkim_diffheaders(DKIM *dkim, dkim_canon_t canon, int maxcost,
                  char **ohdrs, int nohdrs,
                  struct dkim_hdrdiff **out, int *nout)
 {
-#ifdef _FFR_DIFFHEADERS
 	int n = 0;
 	int a = 0;
 	int c;
@@ -6420,10 +6561,9 @@ dkim_diffheaders(DKIM *dkim, dkim_canon_t canon, int maxcost,
 	DKIM_FREE(dkim, cohdrs);
 
 	return DKIM_STAT_OK;
-#else /* _FFR_DIFFHEADERS */
-	return DKIM_STAT_NOTIMPLEMENT;
-#endif /* _FFR_DIFFHEADERS */
 }
+
+#endif /* _FFR_DIFFHEADERS */
 
 /*
 **  DKIM_HEADER -- process a header
@@ -6530,6 +6670,7 @@ dkim_header(DKIM *dkim, u_char *hdr, size_t len)
 		return DKIM_STAT_NORESOURCE;
 	}
 
+#if defined(FIX_CRLF)
 	if ((dkim->dkim_libhandle->dkiml_flags & DKIM_LIBFLAGS_FIXCRLF) != 0)
 	{
 		u_char prev = '\0';
@@ -6574,6 +6715,7 @@ dkim_header(DKIM *dkim, u_char *hdr, size_t len)
 		dkim_dstring_free(tmphdr);
 	}
 	else
+#endif /* FIX_CRLF */
 	{
 		h->hdr_text = dkim_strdup(dkim, hdr, len);
 	}
@@ -6730,7 +6872,9 @@ dkim_chunk(DKIM *dkim, u_char *buf, size_t buflen)
 
 	bso = ((dkim->dkim_libhandle->dkiml_flags & DKIM_LIBFLAGS_BADSIGHANDLES) != 0);
 
+#if defined(FIX_CRLF)
 	if ((dkim->dkim_libhandle->dkiml_flags & DKIM_LIBFLAGS_FIXCRLF) == 0)
+#endif /* FIX_CRLF */
 		dkim->dkim_chunkcrlf = DKIM_CRLF_CRLF;
 
 	/* verify chunking state */
@@ -7411,7 +7555,7 @@ dkim_getsighdr(DKIM *dkim, u_char *buf, size_t buflen, size_t initial)
 */
 
 _Bool
-dkim_sig_hdrsigned(DKIM_SIGINFO *sig, u_char *hdr)
+dkim_sig_hdrsigned(DKIM_SIGINFO *sig, const u_char *hdr)
 {
 	size_t len;
 	u_char *c1 = NULL;
@@ -7556,7 +7700,7 @@ dkim_sig_getreportinfo(DKIM *dkim, DKIM_SIGINFO *sig,
 {
 	DKIM_STAT status;
 	u_char *p;
-	char *sdomain;
+	const char *sdomain;
 	DKIM_SET *set;
 	struct timeval timeout;
 	unsigned char buf[BUFRSZ];
@@ -7568,8 +7712,9 @@ dkim_sig_getreportinfo(DKIM *dkim, DKIM_SIGINFO *sig,
 	    dkim->dkim_mode != DKIM_MODE_VERIFY)
 		return DKIM_STAT_INVALID;
 
-	sdomain = dkim_sig_getdomain(sig);
+	sdomain = (char *) dkim_sig_getdomain(sig);
 
+#if defined(DEBUG_FEATURES)
 	/* report descriptors regardless of reporting parameters */
 	if (sig->sig_hdrcanon != NULL)
 	{
@@ -7635,6 +7780,12 @@ dkim_sig_getreportinfo(DKIM *dkim, DKIM_SIGINFO *sig,
 			assert(0);
 		}
 	}
+#else /* DEBUG_FEATURES */
+	if (hfd != NULL)
+		*hfd = -1;
+	if (bfd != NULL)
+		*bfd = -1;
+#endif /* !DEBUG_FEATURES */
 
 	/* see if the signature had an "r=y" tag */
 	set = sig->sig_taglist;
@@ -8021,7 +8172,7 @@ dkim_get_signer(DKIM *dkim)
 */
 
 DKIM_STAT
-dkim_set_signer(DKIM *dkim, const unsigned char *signer)
+dkim_set_signer(DKIM *dkim, const u_char *signer)
 {
 	assert(dkim != NULL);
 	assert(signer != NULL);
@@ -8029,18 +8180,25 @@ dkim_set_signer(DKIM *dkim, const unsigned char *signer)
 	if (dkim->dkim_mode != DKIM_MODE_SIGN)
 		return DKIM_STAT_INVALID;
 
+#if defined(DEEP_ARGUMENT_COPIES)
 	if (dkim->dkim_signer == NULL)
 	{
-		dkim->dkim_signer = DKIM_MALLOC(dkim, MAXADDRESS + 1);
-		if (dkim->dkim_signer == NULL)
+		u_char * sgn;
+
+		sgn = DKIM_MALLOC(dkim, MAXADDRESS + 1);
+		if (sgn == NULL)
 		{
 			dkim_error(dkim, "unable to allocate %d byte(s)",
 			           MAXADDRESS + 1);
 			return DKIM_STAT_NORESOURCE;
 		}
-	}
 
-	strlcpy((char *) dkim->dkim_signer, (char *) signer, MAXADDRESS + 1);
+		strlcpy((char *) sgn, (char *) signer, MAXADDRESS + 1);
+		dkim->dkim_signer = sgn;
+	}
+#else /* DEEP_ARGUMENT_COPIES */
+	dkim->dkim_signer = signer;
+#endif /* !DEEP_ARGUMENT_COPIES */
 
 	return DKIM_STAT_OK;
 }
@@ -8250,13 +8408,15 @@ dkim_getmode(DKIM *dkim)
 **  	could be determined.
 */
 
-u_char *
+const u_char *
 dkim_getdomain(DKIM *dkim)
 {
 	assert(dkim != NULL);
 
 	return dkim->dkim_domain;
 }
+
+#if defined(MANAGE_AUTHOR_IDENTIFIERS)
 
 /*
 **  DKIM_GETUSER -- retrieve sending user (local-part) from a DKIM context
@@ -8275,6 +8435,8 @@ dkim_getuser(DKIM *dkim)
 
 	return dkim->dkim_user;
 }
+
+#endif /* MANAGE_AUTHOR_IDENTIFIERS */
 
 /*
 **  DKIM_SET_KEY_LOOKUP -- set the key lookup function
@@ -8441,7 +8603,7 @@ dkim_sig_getcontext(DKIM_SIGINFO *siginfo)
 **  	Pointer to the selector associated with the DKIM_SIGINFO.
 */
 
-unsigned char *
+const unsigned char *
 dkim_sig_getselector(DKIM_SIGINFO *siginfo)
 {
 	assert(siginfo != NULL);
@@ -8459,7 +8621,7 @@ dkim_sig_getselector(DKIM_SIGINFO *siginfo)
 **  	Pointer to the domain associated with the DKIM_SIGINFO.
 */
 
-unsigned char *
+const unsigned char *
 dkim_sig_getdomain(DKIM_SIGINFO *siginfo)
 {
 	assert(siginfo != NULL);
@@ -8478,7 +8640,7 @@ dkim_sig_getdomain(DKIM_SIGINFO *siginfo)
 **  	Pointer to the algorithm associated with the DKIM_SIGINFO.
 */
 
-unsigned char *
+const unsigned char *
 dkim_sig_getalgorithm(DKIM_SIGINFO *siginfo)
 {
 	assert(siginfo != NULL);
@@ -8586,6 +8748,8 @@ dkim_ssl_version(void)
 #endif /* USE_GNUTLS */
 }
 
+#if defined(QUERY_CACHE)
+
 /*
 **  DKIM_FLUSH_CACHE -- purge expired records from the cache
 **
@@ -8600,20 +8764,14 @@ dkim_ssl_version(void)
 int
 dkim_flush_cache(DKIM_LIB *lib)
 {
-#ifdef QUERY_CACHE
 	int err;
-#endif /* QUERY_CACHE */
 
 	assert(lib != NULL);
 
-#ifdef QUERY_CACHE
 	if (lib->dkiml_cache == NULL)
 		return -1;
 
 	return dkim_cache_expire(lib->dkiml_cache, 0, &err);
-#else /* QUERY_CACHE */
-	return -1;
-#endif /* QUERY_CACHE */
 }
 
 /*
@@ -8641,7 +8799,6 @@ DKIM_STAT
 dkim_getcachestats(DKIM_LIB *lib, u_int *queries, u_int *hits, u_int *expired,
                    u_int *keys, _Bool reset)
 {
-#ifdef QUERY_CACHE
 	assert(lib != NULL);
 
 	if (lib->dkiml_cache == NULL)
@@ -8650,10 +8807,11 @@ dkim_getcachestats(DKIM_LIB *lib, u_int *queries, u_int *hits, u_int *expired,
 	dkim_cache_stats(lib->dkiml_cache, queries, hits, expired, keys, reset);
 
 	return DKIM_STAT_OK;
-#else /* QUERY_CACHE */
-	return DKIM_STAT_NOTIMPLEMENT;
-#endif /* QUERY_CACHE */
 }
+
+#endif /* QUERY_CACHE */
+
+#if defined(_FFR_CONDITIONAL)
 
 /*
 **  DKIM_CONDITIONAL -- set conditional domain on a signature
@@ -8670,13 +8828,11 @@ dkim_getcachestats(DKIM_LIB *lib, u_int *queries, u_int *hits, u_int *expired,
 DKIM_STAT
 dkim_conditional(DKIM *dkim, u_char *domain)
 {
-#ifdef _FFR_CONDITIONAL
 	dkim->dkim_conditional = domain;
 	return DKIM_STAT_OK;
-#else /* _FFR_CONDITIONAL */
-	return DKIM_STAT_NOTIMPLEMENT;
-#endif /* _FFR_CONDITIONAL */
 }
+
+#endif /* _FFR_CONDITIONAL */
 
 /*
 /*
@@ -8764,6 +8920,8 @@ dkim_get_sigsubstring(DKIM *dkim, DKIM_SIGINFO *sig, char *buf, size_t *buflen)
 	return DKIM_STAT_OK;
 }
 
+#if defined(SHARED)
+
 /*
 **  DKIM_LIBFEATURE -- determine whether or not a particular library feature
 **                     is actually available
@@ -8805,6 +8963,8 @@ dkim_libversion(void)
 {
 	return OPENDKIM_LIB_VERSION;
 }
+
+#endif /* SHARED */
 
 /*
 **  DKIM_SIG_GETTAGVALUE -- retrieve a tag's value from a signature or its key
@@ -9681,11 +9841,11 @@ dkim_signhdrs(DKIM *dkim, const char **hdrlist)
 		(void) strlcpy(buf, "^(", sizeof buf);
 
 		if (!dkim_hdrlist((u_char *) buf, sizeof buf,
-		                  (u_char **) dkim->dkim_libhandle->dkiml_requiredhdrs,
+		                  dkim->dkim_libhandle->dkiml_requiredhdrs,
 		                  TRUE))
 			return DKIM_STAT_INVALID;
 		if (!dkim_hdrlist((u_char *) buf, sizeof buf,
-		                  (u_char **) hdrlist, FALSE))
+		                  (const u_char * const *) hdrlist, FALSE))
 			return DKIM_STAT_INVALID;
 
 		if (strlcat(buf, ")$", sizeof buf) >= sizeof buf)

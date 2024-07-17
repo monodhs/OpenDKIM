@@ -324,32 +324,44 @@ AC_CHECK_MEMBER([struct sockaddr_in6.sin6_len],
 #
 # Library feature string and macros
 #
-LIBOPENDKIM_FEATURE_STRING="libopendkim $PACKAGE_VERSION:"
+LIBOPENDKIM_FEATURE_STRING=""
+AC_DEFUN([APPEND_TO_LIBFS],
+         [LIBOPENDKIM_FEATURE_STRING="[$]LIBOPENDKIM_FEATURE_STRING\n\t\t$1"])
 
 AC_DEFUN([TR_UP], [m4_translit([AS_TR_SH([$1])], [a-z], [A-Z])])
 AC_DEFUN([TR_US], [m4_translit([AS_TR_SH([$1])], [-+.], [___])])
 
-AC_DEFUN([MAN_ENABLED],
-         [AC_SUBST($1[_MANIF],    "manpage_include()manpage_dnl")
-          AC_SUBST($1[_MANELSE],  "manpage_else()manpage_dnl")
-          AC_SUBST($1[_MANENDIF], "manpage_end()manpage_dnl")])
-AC_DEFUN([MAN_DISABLED],
-         [AC_SUBST($1[_MANIF],    "manpage_exclude()manpage_dnl")
-          AC_SUBST($1[_MANELSE],  "manpage_else()manpage_dnl")
-          AC_SUBST($1[_MANENDIF], "manpage_end()manpage_dnl")])
+AC_DEFUN([CGN_ENABLED],
+         [AC_SUBST($1[_]$2[IF],    "codegen_include()codegen_dnl")
+          AC_SUBST($1[_]$2[ELSE],  "codegen_else()codegen_dnl")
+          AC_SUBST($1[_]$2[ENDIF], "codegen_end()codegen_dnl")])
+AC_DEFUN([CGN_DISABLED],
+         [AC_SUBST($1[_]$2[IF],    "codegen_exclude()codegen_dnl")
+          AC_SUBST($1[_]$2[ELSE],  "codegen_else()codegen_dnl")
+          AC_SUBST($1[_]$2[ENDIF], "codegen_end()codegen_dnl")])
+AC_DEFUN([CODE_ENABLED],  [CGN_ENABLED($1,  [])])
+AC_DEFUN([CODE_DISABLED], [CGN_DISABLED($1, [])])
+AC_DEFUN([DOC_ENABLED],   [CGN_ENABLED($1,  [DOC])])
+AC_DEFUN([DOC_DISABLED],  [CGN_DISABLED($1, [DOC])])
+AC_DEFUN([MAN_ENABLED],   [CGN_ENABLED($1,  [MAN])])
+AC_DEFUN([MAN_DISABLED],  [CGN_DISABLED($1, [MAN])])
 
 AC_DEFUN([STANDARD_FEATURE],
          [notincluded="(Not enabled for this installation.)"
-          AC_ARG_ENABLE($1, AS_HELP_STRING(--disable-$1, $2),
+          AC_ARG_ENABLE($1, AS_HELP_STRING(--disable-$1, [$2]),
                         [enable_]TR_US($1)[=$enableval],
                         [enable_]TR_US($1)[=yes])
           AS_IF([test x"$enable_]TR_US($1)[" != x"no"],
                 [
+                 CODE_ENABLED(TR_UP(TR_US($1)))
+                 DOC_ENABLED(TR_UP(TR_US($1)))
                  MAN_ENABLED(TR_UP(TR_US($1)))
                  AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], "")
                  AC_DEFINE(TR_UP(TR_US($1)), 1, [do not disable $3])
                 ],
                 [
+                 CODE_DISABLED(TR_UP(TR_US($1)))
+                 DOC_DISABLED(TR_UP(TR_US($1)))
                  MAN_DISABLED(TR_UP(TR_US($1)))
                  AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded)
                 ])
@@ -357,34 +369,59 @@ AC_DEFUN([STANDARD_FEATURE],
 
 AC_DEFUN([FEATURE],
          [notincluded="(Not enabled for this installation.)"
-          AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, $2),
+          AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, [$2]),
                         AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
                               [
+				CODE_ENABLED(TR_UP(TR_US($1)))
+				DOC_ENABLED(TR_UP(TR_US($1)))
 				MAN_ENABLED(TR_UP(TR_US($1)))
 				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], "")
 				AC_DEFINE(TR_UP(TR_US($1)), 1, [enable $1 feature])
 			      ],
 			      [
+				CODE_DISABLED(TR_UP(TR_US($1)))
+				DOC_DISABLED(TR_UP(TR_US($1)))
 				MAN_DISABLED(TR_UP(TR_US($1)))
 				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded)
 			      ]),
+                        CODE_DISABLED(TR_UP(TR_US($1)))
+                        DOC_DISABLED(TR_UP(TR_US($1)))
                         MAN_DISABLED(TR_UP(TR_US($1)))
                         AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded))
+         ])
+
+AC_DEFUN([STANDARD_LIB_FEATURE],
+         [AC_ARG_ENABLE($1, AS_HELP_STRING(--disable-$1, [$2]),
+                        [enable_]TR_US($1)[=$enableval],
+                        [enable_]TR_US($1)[=yes])
+          AS_IF([test x"$enable_]TR_US($1)[" != x"no"],
+                [
+                 CODE_ENABLED(TR_UP(TR_US($1)))
+                 DOC_ENABLED(TR_UP(TR_US($1)))
+                 MAN_ENABLED(TR_UP(TR_US($1)))
+                 AC_DEFINE(TR_UP(TR_US($1)), 1, [do not disable libopendkim $3])
+                ],
+                [
+                 CODE_DISABLED(TR_UP(TR_US($1)))
+                 DOC_DISABLED(TR_UP(TR_US($1)))
+                 MAN_DISABLED(TR_UP(TR_US($1)))
+                 APPEND_TO_LIBFS([-$1])
+                ])
          ])
 
 AC_DEFUN([LIB_FEATURE],
          [FEATURE($1, $2)
           AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
-	        [
-			LIBOPENDKIM_FEATURE_STRING="$LIBOPENDKIM_FEATURE_STRING $1"
-		])
+	        [APPEND_TO_LIBFS([+$1])])
          ])
 
 AC_DEFUN([FFR_FEATURE],
          [experimentalnotincluded="(Experimental feature not enabled for this installation.)"
-          AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, $2),
+          AC_ARG_ENABLE($1, AS_HELP_STRING(--enable-$1, [$2]),
                         AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
                               [
+				CODE_ENABLED(TR_UP(TR_US($1)))
+				DOC_ENABLED(TR_UP(TR_US($1)))
 				MAN_ENABLED(TR_UP(TR_US($1)))
 				AC_DEFINE([_FFR_]TR_UP(TR_US($1)), 1,
 				          [enable $1 feature])
@@ -392,10 +429,14 @@ AC_DEFUN([FFR_FEATURE],
 				         "(Note: Feature is experimental.)")
                               ],
                               [
+				CODE_DISABLED(TR_UP(TR_US($1)))
+				DOC_DISABLED(TR_UP(TR_US($1)))
 				MAN_DISABLED(TR_UP(TR_US($1)))
 				AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE],
 				         $experimentalnotincluded)
                               ]),
+                        CODE_DISABLED(TR_UP(TR_US($1)))
+                        DOC_DISABLED(TR_UP(TR_US($1)))
                         MAN_DISABLED(TR_UP(TR_US($1)))
                         AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE],
                                  $experimentalnotincluded))
@@ -404,10 +445,58 @@ AC_DEFUN([FFR_FEATURE],
 AC_DEFUN([LIB_FFR_FEATURE],
          [FFR_FEATURE($1, $2)
           AS_IF([test "x$enable_]TR_US($1)[" = "xyes"],
-                [
-			LIBOPENDKIM_FEATURE_STRING="$LIBOPENDKIM_FEATURE_STRING $1"
-		])
+                [APPEND_TO_LIBFS([+$1])])
          ])
+
+AC_DEFUN([LIB_MANNOTICE],
+         [AS_IF([test x"$enable_]TR_US($1)[" = x"yes"],
+                [AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], "")],
+                [AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded)])
+         ])
+
+#
+# libtool
+#
+AS_IF([test x"$enable_shared" = x"yes"],
+	[CODE_ENABLED([SHARED])
+	 AC_DEFINE([SHARED], 1, [enable shared libraries])],
+	[CODE_DISABLED([SHARED])])
+
+#
+# libopendkim
+#
+STANDARD_LIB_FEATURE([manage-author-identifiers],
+	[do not give special treatment to or manage the From: header field
+contents and related data in libopendkim],
+	[author identifier management])
+STANDARD_LIB_FEATURE([required-headers-checks],
+	[do not check for the presence of required headers in a message
+when signing the message in libopendkim],
+	[required headers to sign checks])
+STANDARD_LIB_FEATURE([strict-headers],
+	[do not refuse processing of a message if its header section does
+not conform to RFC 5322, Section 3.6., in libopendkim],
+	[header section conformity checks])
+STANDARD_LIB_FEATURE([fix-crlf],
+	[do not repair, but still report line termination errors in libopendkim],
+	[line termination repairs])
+STANDARD_LIB_FEATURE([debug-features],
+	[do not provide features for debugging DKIM such as canonicalized
+content and diagnostics in libopendkim],
+	[debug features])
+STANDARD_LIB_FEATURE([tas-support],
+	[do not provide facilities for tests and simulations of
+public key management and DNS-related features in libopendkim],
+	[testing and simulation support])
+AM_CONDITIONAL(TR_UP(TR_US(tas-support)), [test x"$enable_]TR_US(tas-support)[" = x"yes"])
+STANDARD_LIB_FEATURE([unimplemented-features],
+	[do not pretend that features are available which are, in fact,
+not unimplemented at all in libopendkim],
+	[unimplemented features])
+STANDARD_LIB_FEATURE([deep-argument-copies],
+	[do not make deep copies of arguments in libopendkim allocation,
+options, and related API calls],
+	[deep argument copies])
 
 #
 # opendkim
@@ -433,6 +522,13 @@ STANDARD_FEATURE([bypass-criteria],
 	[disable the application of criteria that allow a message to
 completely bypass the DKIM services],
 	[DKIM service bypass criteria])
+STANDARD_FEATURE([redirect-failures],
+	[do not redirect messages bearing signatures that failed to verify],
+	[message redirection])
+
+AS_IF([test x"$enable_]TR_US(production-tests)[" != x"no" -a \
+            x"$enable_]TR_US(tas-support)[" = x"no"],
+	[AC_MSG_ERROR([feature 'production-tests' requires feature 'tas-support'])])
 
 FEATURE([popauth], [enable POP-before-SMTP support])
 
@@ -459,6 +555,10 @@ AS_IF([test x"$enable_]TR_US(bypass-criteria)[" != x"yes"],
 m4_define([dfltsmtprtxt], ["Service denied"])
 AC_DEFINE([DEFAULT_SMTP_REPLY_TEXT], dfltsmtprtxt, [Keep autoheader(1) happy.])
 AC_SUBST([DEFAULT_SMTP_REPLY_TEXT],  dfltsmtprtxt)
+
+LIB_MANNOTICE([strict-headers])
+LIB_MANNOTICE([fix-crlf])
+LIB_MANNOTICE([debug-features])
 
 FFR_FEATURE([atps], [experimental Authorized Third Party Signers checks])
 LIB_FFR_FEATURE([atps], [experimental Authorized Third Party Signers checks])
@@ -538,11 +638,14 @@ FFR_FEATURE([default_sender], [default sender address])
 
 # sendmail command
 
+AS_IF([test x"$enable_]TR_US(debug-features)[" != x"no"],
+[
 AC_PATH_PROG([SENDMAIL_PATH], [sendmail], [/usr/sbin/sendmail],
              [/sbin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/lib:$PATH])
 AC_DEFINE_UNQUOTED([SENDMAIL_PATH], "$ac_cv_path_SENDMAIL_PATH",
                    [The path the the sendmail executable for report sending])
 AC_SUBST([SENDMAIL_PATH])
+])
 
 #
 # use rpath at load time?
@@ -721,7 +824,7 @@ AC_ARG_ENABLE([debug],
 	                     [produce debugging binaries and libraries]),
               AS_IF([test "x$enable_debug" = x"yes"],
 		[
-			LIBOPENDKIM_FEATURE_STRING="$LIBOPENDKIM_FEATURE_STRING debug"
+			APPEND_TO_LIBFS([+debug])
 			[[CFLAGS=`echo $CFLAGS | sed 's/ -O[1-9s]*//g'`]]
 		])
 )
@@ -871,6 +974,7 @@ then
 	AC_MSG_CHECKING([whether your GnuTLS supports SHA256])
 	AC_LINK_IFELSE([AC_LANG_SOURCE([$sha256check])],
 	               AC_MSG_RESULT(yes)
+	               CODE_ENABLED([HAVE_SHA256])
                        AC_DEFINE([HAVE_SHA256], 1,
  	                         [Define to 1 if your crypto library has SHA256 support]),
 	               AC_MSG_WARN([SHA256 is required for DKIM but is not
@@ -1002,6 +1106,7 @@ then
 	fi
 
 	AC_CHECK_DECL([EVP_PKEY_ED25519],
+                      CODE_ENABLED([HAVE_ED25519])
                       AC_DEFINE([HAVE_ED25519], 1,
  	                        [Define to 1 if your crypto library has ED25519 support]), ,
 	              [
@@ -1009,6 +1114,7 @@ then
 #include <openssl/evp.h>])
 
 	AC_CHECK_DECL([SHA256_DIGEST_LENGTH],
+                      CODE_ENABLED([HAVE_SHA256])
                       AC_DEFINE([HAVE_SHA256], 1,
  	                        [Define to 1 if your crypto library has SHA256 support]),
 	              AC_MSG_WARN([SHA256 is required for DKIM but is not
@@ -1739,6 +1845,7 @@ fi
 
 if test x"$lua_found" = x"yes"
 then
+	MAN_ENABLED([LUA])
 	AC_SUBST([LUA_MANNOTICE], "")
 	AC_DEFINE([USE_LUA], 1, [support for Lua scripting])
 	AC_SEARCH_LIBS([dlopen], [dl])
@@ -1763,7 +1870,9 @@ main()
 	CPPFLAGS="$saved_CPPFLAGS"
 	AC_DEFINE([USE_LUA], 1, [support for Lua scripting])
 	AC_SUBST([LUA_MANNOTICE], "")
+	MAN_ENABLED([LUA])
 else
+	MAN_DISABLED([LUA])
 	AC_SUBST([LUA_MANNOTICE], "(Not enabled for this installation.)")
 fi
 
@@ -2782,7 +2891,17 @@ AC_CONFIG_FILES([	Makefile
 			contrib/systemd/Makefile
 			contrib/systemd/opendkim.service
 		libopendkim/opendkim.pc libopendkim/Makefile
+			libopendkim/dkim.h.m4
 		libopendkim/docs/Makefile
+			libopendkim/docs/dkim_eoh.html.m4
+			libopendkim/docs/dkim_eom.html.m4
+			libopendkim/docs/dkim_getdomain.html.m4
+			libopendkim/docs/dkim_options.html.m4
+			libopendkim/docs/dkim_query_t.html.m4
+			libopendkim/docs/dkim_set_signer.html.m4
+			libopendkim/docs/dkim_sign.html.m4
+			libopendkim/docs/dkim_verify.html.m4
+			libopendkim/docs/index.html.m4
 		libopendkim/tests/Makefile
 		librbl/rbl.pc librbl/Makefile
 		libut/ut.pc libut/Makefile

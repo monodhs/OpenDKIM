@@ -114,6 +114,8 @@ dkim_strdup(DKIM *dkim, const unsigned char *str, size_t len)
 	return new;
 }
 
+#if defined(DEBUG_FEATURES)
+
 /*
 **  DKIM_TMPFILE -- open a temporary file
 **
@@ -170,6 +172,8 @@ dkim_tmpfile(DKIM *dkim, int *fp, _Bool keep)
 
 	return DKIM_STAT_OK;
 }
+
+#endif /* DEBUG_FEATURES */
 
 /*
 **  DKIM_DSTRING_RESIZE -- resize a dynamic string (dstring)
@@ -387,7 +391,7 @@ dkim_dstring_copy(struct dkim_dstring *dstr, unsigned char *str)
 */
 
 _Bool
-dkim_dstring_cat(struct dkim_dstring *dstr, unsigned char *str)
+dkim_dstring_cat(struct dkim_dstring *dstr, const unsigned char *str)
 {
 	size_t len;
 	size_t needed;

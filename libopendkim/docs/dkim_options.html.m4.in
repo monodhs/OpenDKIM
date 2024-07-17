@@ -1,3 +1,4 @@
+include(DOCGEN_MACROS)dnl
 <html>
 <head><title>dkim_options()</title></head>
 <body>
@@ -77,13 +78,22 @@ of the library's operation.
 				acceptable.  The default is 1024. </td></tr>
            <tr valign="top"><td><tt>DKIM_OPTS_MUSTBESIGNED</tt></td>
                             <td><tt>data</tt> refers to an ordered,
-                                NULL-terminated array of header names which,
-                                when verifying a message, must be covered
-				by a signature for the signature to be
-				considered valid.  The default is to make
+                                NULL-terminated array containing the names
+                                of header fields which, when verifying a message,
+                                must be covered by a signature for the signature
+                                to be considered valid.  The default is to make
 				no such assertion.  If <tt>data</tt>
                                 refers to a NULL pointer, the default is
-                                restored. </td></tr>
+                                restored.
+@DEEP_ARGUMENT_COPIES_DOCIF@
+@DEEP_ARGUMENT_COPIES_DOCELSE@
+				Only a pointer to the array is saved, and the
+				caller is responsible for maintaining the object
+				it points to for the entire lifetime of
+				the <tt>DKIM_LIB</tt> object pointed to
+				by <tt>lib</tt>.
+@DEEP_ARGUMENT_COPIES_DOCENDIF@
+				</td></tr>
            <tr valign="top"><td><tt>DKIM_OPTS_OVERSIGNHDRS</tt></td>
                             <td><tt>data</tt> refers to an unordered,
 				NULL-terminated array of pointers to
@@ -94,12 +104,23 @@ of the library's operation.
 				that were signed.  This prevents later handlers
 				from adding instances of those header fields
 				without invalidating the signature.  This list
-				is empty by default.</td></tr>
+				is empty by default.
+@DEEP_ARGUMENT_COPIES_DOCIF@
+@DEEP_ARGUMENT_COPIES_DOCELSE@
+				Only a pointer to the array is saved, and the
+				caller is responsible for maintaining the object
+				it points to for the entire lifetime of
+				the <tt>DKIM_LIB</tt> object pointed to
+				by <tt>lib</tt>.
+@DEEP_ARGUMENT_COPIES_DOCENDIF@
+				</td></tr>
+@TAS_SUPPORT_DOCIF@
            <tr valign="top"><td><tt>DKIM_OPTS_QUERYINFO</tt></td>
                             <td><tt>data</tt> refers to a string
                                 in which query information is stored.  See
                                 <tt><a href="dkim_query_t.html">dkim_query_t</a></tt>
                                 for more information. </td> </tr>
+@TAS_SUPPORT_DOCENDIF@
            <tr valign="top"><td><tt>DKIM_OPTS_QUERYMETHOD</tt></td>
                             <td><tt>data</tt> refers to a
                                 <tt><a href="dkim_query_t.html">dkim_query_t</a></tt>
@@ -108,14 +129,33 @@ of the library's operation.
                                 verifications. </td></tr>
            <tr valign="top"><td><tt>DKIM_OPTS_REQUIREDHDRS</tt></td>
                             <td><tt>data</tt> refers to an ordered,
-                                NULL-terminated array of header field names
-				that should be considered mandatory when
-				determining the validity of an input message
-				for signing.  The default is to require a
-				<tt>From</tt> field only.  The caller's list
-				completely replaces this list.  If
-				<tt>data</tt> refers to a NULL pointer, the
-				default is restored. </td></tr>
+                                NULL-terminated array containing the names
+				of all header fields that should be considered
+				mandatory when determining the
+@REQUIRED_HEADERS_CHECKS_DOCIF@
+				validity of an input message for signing.
+@REQUIRED_HEADERS_CHECKS_DOCELSE@
+				set of header fields to sign.
+@REQUIRED_HEADERS_CHECKS_DOCENDIF@
+
+				The default is the constant
+				<tt>dkim_required_signhdrs</tt>, which
+				contains the names of all header fields RFC 6376
+				Section 5.4 says must be signed.
+
+				The caller's list completely replaces this list.
+
+				If <tt>data</tt> refers to a NULL pointer, the
+				default is restored.
+@DEEP_ARGUMENT_COPIES_DOCIF@
+@DEEP_ARGUMENT_COPIES_DOCELSE@
+				Only a pointer to the array is saved, and the
+				caller is responsible for maintaining the object
+				it points to for the entire lifetime of
+				the <tt>DKIM_LIB</tt> object pointed to
+				by <tt>lib</tt>.
+@DEEP_ARGUMENT_COPIES_DOCENDIF@
+				</td></tr>
            <tr valign="top"><td><tt>DKIM_OPTS_SIGNATURETTL</tt></td>
                             <td><tt>data</tt> refers to a <tt>uint64_t</tt>
                                 that contains the time-to-live, in seconds,
@@ -131,13 +171,13 @@ of the library's operation.
                                 character, meaning "match zero or more
                                 characters", is permitted.
 
-                                The <tt>From</tt> header field is mandatory and
-                                thus implicitly added to any list provided
-                                by the caller.
+                                The list of header field names under
+                                <tt>DKIM_OPTS_REQUIREDHDRS</tt> is implicitly
+                                added to any list provided by the caller.
 
                                 The constant <tt>dkim_should_signhdrs</tt> may
 				be specified as the <tt>data</tt>, which
-				contains all of the header fields RFC6376
+				contains the names of all header fields RFC 6376
 				Section 5.4 says should be signed.
 
                                 The default is to sign all header fields.
@@ -151,15 +191,15 @@ of the library's operation.
 				currently stored in a useable form.</td></tr>
            <tr valign="top"><td><tt>DKIM_OPTS_SKIPHDRS</tt></td>
                             <td><tt>data</tt> refers to an unordered,
-                                NULL-terminated array of header names which
-                                are the ones that should be skipped when
+                                NULL-terminated array containing the names
+                                of header fields which should be skipped when
                                 processing a message for signing.  The default
 				is to skip no headers.
 
                                 The constant <tt>dkim_should_not_signhdrs</tt>
 				may be specified as the <tt>data</tt>, which
-				contains all of the headers RFC6376 Section
-				5.4 says should not be signed.
+				contains the names of all header fields RFC 6376
+				Section 5.4 says should not be signed.
 
                                 Wildcarding using the asterisk ("*")
                                 character, meaning "match zero or more
@@ -172,10 +212,12 @@ of the library's operation.
                                 option returns an error as it is converted
                                 to regular expressions and not currently
                                 stored in a useable form.</td></tr>
+@DEBUG_FEATURES_DOCIF@
            <tr valign="top"><td><tt>DKIM_OPTS_TMPDIR</tt></td>
                             <td><tt>data</tt> refers to a string which is
                                 the directory <tt>libopendkim</tt> should use for
                                 creating temporary files.</td></tr>
+@DEBUG_FEATURES_DOCENDIF@
            <tr valign="top"><td><tt>DKIM_OPTS_TIMEOUT</tt></td>
                             <td><tt>data</tt> refers to an unsigned integer
                                 indicating the timeout, in seconds, to be
@@ -229,14 +271,14 @@ are:
       a syntax error code when it encounters a DKIM signature with a syntax
       error in it. </td>
  </tr>
+@QUERY_CACHE_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_CACHE</tt></td>
   <td>Maintain a local cache of retrieved key records, rather
       than relying on the DNS servers to do so.  May improve performance
-      if, for example, the DNS server is not local.  Requires that libopendkim
-      be compiled with the <tt>QUERY_CACHE</tt> option since doing so
-      adds a library dependency to the build. </td>
+      if, for example, the DNS server is not local. </td>
  </tr>
+@QUERY_CACHE_DOCENDIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_DELAYSIGPROC</tt></td>
   <td>Normally the key retrieval and public key validation takes place in
@@ -267,16 +309,21 @@ are:
       This will cause <tt>dkim_eoh()</tt> to return an error code if no
       useable signatures were found in the message. </td>
  </tr>
+@FIX_CRLF_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_FIXCRLF</tt></td>
   <td>Convert "naked" CR and LF characters into CRLFs when canonicalizing.
       </td>
  </tr>
+@FIX_CRLF_DOCENDIF@
+@DEBUG_FEATURES_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_KEEPFILES</tt></td>
   <td>Keep temporary files for manual debugging purposes.  (Also requires that
       <tt>DKIM_LIBFLAGS_TMPFILES</tt> be set.)</td>
  </tr>
+@DEBUG_FEATURES_DOCENDIF@
+@UNIMPLEMENTED_FEATURES_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_REPORTBADADSP</tt></td>
   <td>When doing the ADSP query, a response that is a syntax error will by
@@ -284,6 +331,8 @@ are:
       This can be common when, for example, wildcard TXT records are used to
       publish other data. </td>
  </tr>
+@UNIMPLEMENTED_FEATURES_DOCENDIF@
+@DEBUG_FEATURES_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_REQUESTREPORTS</tt></td>
   <td>Includes an "r=y" tag in generated signatures, requesting participating
@@ -291,40 +340,49 @@ are:
       when validation fails.  Useful for debugging signature validation
       issues. </td>
  </tr>
+@DEBUG_FEATURES_DOCENDIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_SIGNLEN</tt></td>
   <td>When signing messages, include in the signature the number of bytes
       that were canonicalized even when a length limit wasn't specified
       by the caller. </td>
  </tr>
+@STRICT_HEADERS_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_STRICTHDRS</tt></td>
   <td>Refuse to sign or verify a message that doesn't conform to the header
       field count rules specified in RFC5322 Section 3.6, and have a properly
       formed From field.  Other checks may also be enforced in the future. </td>
  </tr>
+@STRICT_HEADERS_DOCENDIF@
+@RESIGN_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_STRICTRESIGN</tt></td>
   <td>Refuse to generate a signature from a signing handle bound to a
       verifying handle (see <a href="dkim_resign.html"><tt>dkim_resign()</tt></a>)
       if the verifying handle yielded no valid signatures. </td>
  </tr>
+@RESIGN_DOCENDIF@
+@DEBUG_FEATURES_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_TMPFILES</tt></td>
   <td>Make temporary files for debugging purposes.  See
       <a href="dkim_sig_reportinfo.html"><tt>dkim_sig_reportinfo()</tt></a>
       for an example of how this might be useful.</td>
  </tr>
+@DEBUG_FEATURES_DOCENDIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_VERIFYONE</tt></td>
   <td>When verifying, only process signatures until the first good one
       is found (by default, all of them will be attempted). </td>
  </tr>
+@DEBUG_FEATURES_DOCIF@
  <tr>
   <td><tt>DKIM_LIBFLAGS_ZTAGS</tt></td>
   <td>Include the original header set encoded into a "z=" tag in the
       signature for diagnostic use by the receiver. </td>
  </tr>
+@DEBUG_FEATURES_DOCENDIF@
 </table>
 </td>
 </tr>
