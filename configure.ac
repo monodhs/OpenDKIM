@@ -79,6 +79,50 @@ outer_CPPFLAGS="$CPPFLAGS"
 outer_LDFLAGS="$LDFLAGS"
 outer_LIBS="$LIBS"
 
+saved_CPPFLAGS="$CPPFLAGS"
+
+#
+# adaptive pthread mutexes
+#
+adaptive_mutex_flags="-D _GNU_SOURCE"
+CPPFLAGS="$outer_CPPFLAGS $adaptive_mutex_flags"
+have_adaptive_mutexes="no"
+AC_MSG_CHECKING([whether pthread mutexes may be made adaptive])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([
+#include <pthread.h>
+
+int
+main ()
+{
+	pthread_mutexattr_t pma;
+
+	pthread_mutexattr_init(&pma);
+	pthread_mutexattr_settype(&pma, PTHREAD_MUTEX_ADAPTIVE_NP);
+
+	return 0;
+}
+	])],
+	[AC_MSG_RESULT([yes])
+	 have_adaptive_mutexes="yes"],
+	[AC_MSG_ERROR([no])])
+#
+# adaptive pthread mutex initializers
+#
+have_adaptive_mutex_initializers="no"
+AC_MSG_CHECKING([whether initializers for adaptive pthread mutexes are available])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([
+#include <pthread.h>
+
+pthread_mutex_t apm = PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP;
+
+int main () { return 0; }
+	])],
+	[AC_MSG_RESULT([yes])
+	 have_adaptive_mutex_initializers="yes"],
+	[AC_MSG_ERROR([no])])
+
+CPPFLAGS="$saved_CPPFLAGS"
+
 #
 # Checks for libraries
 #
@@ -365,6 +409,30 @@ AC_DEFUN([LIB_FFR_FEATURE],
 # opendkim
 #
 FEATURE([popauth], [enable POP-before-SMTP support])
+
+FEATURE([adaptive-mutexes],
+	[enable adaptive pthread mutexes if available])
+FEATURE([mutex-initializers],
+	[prefer pthread mutex initializers over initialization functions])
+
+pthread_mutex_type="PTHREAD_MUTEX_DEFAULT"
+pthread_mutex_initializer="PTHREAD_MUTEX_INITIALIZER"
+LOCAL_PTHREAD_CPPFLAGS=""
+AS_IF([test x"$enable_]TR_US(adaptive-mutexes)[" = x"yes"],
+	[AS_IF([test x"$have_adaptive_mutexes" = x"yes"],
+		[pthread_mutex_type="PTHREAD_MUTEX_ADAPTIVE_NP"
+		 LOCAL_PTHREAD_CPPFLAGS="$adaptive_mutex_flags"])
+	 AS_IF([test x"$have_adaptive_mutex_initializers" = x"yes"],
+		[pthread_mutex_initializer="PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP"
+		 LOCAL_PTHREAD_CPPFLAGS="$adaptive_mutex_flags"])
+	])
+AC_DEFINE_UNQUOTED([LOCAL_PTHREAD_MUTEX_TYPE],
+	[$pthread_mutex_type],
+	[preferred pthread mutex type])
+AC_DEFINE_UNQUOTED([LOCAL_PTHREAD_MUTEX_INITIALIZER],
+	[$pthread_mutex_initializer],
+	[preferred pthread mutex initializer])
+AC_SUBST([LOCAL_PTHREAD_CPPFLAGS])
 
 FFR_FEATURE([atps], [experimental Authorized Third Party Signers checks])
 LIB_FFR_FEATURE([atps], [experimental Authorized Third Party Signers checks])

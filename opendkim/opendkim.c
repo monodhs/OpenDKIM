@@ -767,8 +767,12 @@ DKIMF_DB popdb;					/* POP auth DB */
 char reportcmd[BUFRSZ + 1];			/* reporting command */
 char reportaddr[MAXADDRESS + 1];		/* reporting address */
 char myhostname[DKIM_MAXHOSTNAMELEN + 1];	/* hostname */
-pthread_mutex_t conf_lock;			/* config lock */
-pthread_mutex_t pwdb_lock;			/* passwd/group lock */
+pthread_mutex_t conf_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
+						/* config lock */
+pthread_mutex_t pwdb_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
+						/* passwd/group lock */
+static pthread_mutexattr_t pma;
+const pthread_mutexattr_t * const mutex_attrs = &pma;
 
 /* Other useful definitions */
 #define CRLF			"\r\n"		/* CRLF */
@@ -15558,6 +15562,9 @@ main(int argc, char **argv)
 	no_i_whine = TRUE;
 	conffile = NULL;
 
+	pthread_mutexattr_init(&pma);
+	pthread_mutexattr_settype(&pma, LOCAL_PTHREAD_MUTEX_TYPE);
+
 	memset(myhostname, '\0', sizeof myhostname);
 	(void) gethostname(myhostname, sizeof myhostname);
 
@@ -17013,9 +17020,6 @@ main(int argc, char **argv)
 		                    DKIM_OPTS_QUERYINFO,
 		                    testpubkeys, strlen(testpubkeys));
 	}
-
-	pthread_mutex_init(&conf_lock, NULL);
-	pthread_mutex_init(&pwdb_lock, NULL);
 
 	/* perform test mode */
 	if (testfile != NULL)

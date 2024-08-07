@@ -40,7 +40,7 @@ struct flowdata
 };
 
 /* GLOBALS */
-pthread_mutex_t ratelock;
+pthread_mutex_t ratelock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
 
 /*
 **  DKIMF_RATE_CHECK -- conduct a rate limit check, expire data, increment

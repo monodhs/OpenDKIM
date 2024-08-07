@@ -8,6 +8,7 @@
 /* system includes */
 #include <sys/param.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 /* constants */
 #ifndef FALSE
@@ -61,7 +62,7 @@ extern void repute_close(REPUTE);
 extern const char * repute_curlversion(REPUTE);
 extern const char *repute_error(REPUTE);
 extern void repute_init(void);
-extern REPUTE repute_new(const char *, unsigned int);
+extern REPUTE repute_new(const char *, unsigned int, const pthread_mutexattr_t *);
 extern REPUTE_STAT repute_query(REPUTE, const char *, float *,
                                 float *, unsigned long *, unsigned long *,
                                 time_t *);

@@ -374,7 +374,7 @@ dkimf_db_hp_new(u_int type, u_int max, void *hdata)
 		new->hp_handles = NULL;
 		new->hp_hdata = hdata;
 		new->hp_max = max;
-		pthread_mutex_init(&new->hp_lock, NULL);
+		pthread_mutex_init(&new->hp_lock, mutex_attrs);
 		pthread_cond_init(&new->hp_signal, NULL);
 	}
 
@@ -1926,7 +1926,7 @@ dkimf_db_open(DKIMF_DB *db, char *name, u_int flags, pthread_mutex_t *lock,
 			return -1;
 		}
 
-		pthread_mutex_init(new->db_lock, NULL);
+		pthread_mutex_init(new->db_lock, mutex_attrs);
 	}
 
 	switch (new->db_type)
@@ -2937,7 +2937,7 @@ dkimf_db_open(DKIMF_DB *db, char *name, u_int flags, pthread_mutex_t *lock,
 			}
 		}
 
-		pthread_mutex_init(&ldap->ldap_lock, NULL);
+		pthread_mutex_init(&ldap->ldap_lock, mutex_attrs);
 
 # ifdef _FFR_LDAP_CACHING
 #  ifdef USE_DB
@@ -3171,7 +3171,7 @@ dkimf_db_open(DKIMF_DB *db, char *name, u_int flags, pthread_mutex_t *lock,
 			 	return -1;
 		}
 
-		r = repute_new(p, reporter);
+		r = repute_new(p, reporter, mutex_attrs);
 		if (r == NULL)
 			return -1;
 

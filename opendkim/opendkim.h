@@ -18,6 +18,7 @@
 #ifdef HAVE_STDBOOL_H
 # include <stdbool.h>
 #endif /* HAVE_STDBOOL_H */
+#include <pthread.h>
 
 /* libmilter */
 #ifdef DKIMF_MILTER_PROTOTYPES
@@ -141,6 +142,7 @@ struct statsext
 /* externs */
 extern _Bool dolog;
 extern char *progname;
+extern const pthread_mutexattr_t * const mutex_attrs;
 
 /* prototypes, exported for test.c */
 #ifdef DKIMF_MILTER_PROTOTYPES

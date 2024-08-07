@@ -57,7 +57,7 @@
 #include "opendkim-db.h"
 
 /* globals */
-static pthread_mutex_t stats_lock;
+static pthread_mutex_t stats_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
 
 /*
 **  DKIMF_STATS_INIT -- initialize statistics
@@ -72,7 +72,6 @@ static pthread_mutex_t stats_lock;
 void
 dkimf_stats_init(void)
 {
-	pthread_mutex_init(&stats_lock, NULL);
 }
 
 /*
