@@ -124,13 +124,15 @@ struct Header
 typedef struct signreq * SIGNREQ;
 struct signreq
 {
-	ssize_t			srq_signlen;
-	void *			srq_keydata;
 	u_char *		srq_domain;
 	u_char *		srq_selector;
 	u_char *		srq_signer;
+	u_char *		srq_keydata;
+	dkim_hashalg_arg_t	srq_hashalg;
+	ssize_t			srq_signlen;
 	DKIM *			srq_dkim;
 	struct signreq *	srq_next;
+	u_char			srq_data[];
 };
 
 #ifdef _FFR_STATSEXT

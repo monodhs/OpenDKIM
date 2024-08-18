@@ -1,0 +1,39 @@
+<html>
+<head><title>dkim_hashalg_t</title></head>
+<body>
+<!--
+-->
+<h1>dkim_hashalg_t</h1>
+<p align="right"><a href="index.html">[back to index]</a></p>
+
+<table border="0" cellspacing=4 cellpadding=4>
+<!----------- Description ---------->
+<tr><th valign="top" align=left>DESCRIPTION</th><td>
+<table border="1" cellspacing=1 cellpadding=4>
+<tr align="left" valign=top>
+<th width="80">Purpose</th>
+<td>A <tt>dkim_hashalg_t</tt> is a value from an enumerated list of
+    the possible hash algorithms available.
+    It is passed in the form of an argument type as a parameter
+    to <a href="dkim_sign.html"><tt>dkim_sign()</tt></a> when
+    selecting a hash algorithm to be used when preparing a message
+    body for signing.  It need not be passed to
+    <a href="dkim_verify.html"><tt>dkim_verify()</tt></a> as that function
+    will determine the hash algorithm for verification based on the
+    signature on an arriving message.</td>
+</tr>
+<tr align="left" valign=top>
+<th width="80">Possible Values</th>
+<td>
+<ul>
+<li> <tt>DKIM_HASHALG_SHA1</tt> -- defined in RFC 6376
+<li> <tt>DKIM_HASHALG_SHA256</tt> -- defined in RFC 6376
+</ul>
+</td>
+</tr>
+</table>
+
+</table>
+
+</body>
+</html>

@@ -58,38 +58,34 @@ static struct nametable prv_sigparams[] =	/* signature parameters */
 };
 struct nametable *sigparams = prv_sigparams;
 
-static struct nametable prv_algorithms[] =	/* signing algorithms */
+const struct nametable dkim_sign_alg[] =	/* signing algorithms */
 {
 	{ "rsa-sha1",		DKIM_SIGN_RSASHA1 },
 	{ "rsa-sha256",		DKIM_SIGN_RSASHA256 },
 	{ "ed25519-sha256",	DKIM_SIGN_ED25519SHA256 },
 	{ NULL,		-1 },
 };
-struct nametable *algorithms = prv_algorithms;
 
-static struct nametable prv_canonicalizations[] = /* canonicalizations */
+const struct nametable dkim_canon[] =		/* canonicalizations */
 {
 	{ "simple",	DKIM_CANON_SIMPLE },
 	{ "relaxed",	DKIM_CANON_RELAXED },
 	{ NULL,		-1 },
 };
-struct nametable *canonicalizations = prv_canonicalizations;
 
-static struct nametable prv_hashes[] =		/* hashes */
+const struct nametable dkim_hash_alg[] =	/* hashes */
 {
-	{ "sha1",	DKIM_HASHTYPE_SHA1 },
-	{ "sha256",	DKIM_HASHTYPE_SHA256 },
+	{ "sha1",	DKIM_HASHALG_SHA1 },
+	{ "sha256",	DKIM_HASHALG_SHA256 },
 	{ NULL,		-1 },
 };
-struct nametable *hashes = prv_hashes;
 
-static struct nametable prv_keytypes[] =	/* key types */
+const struct nametable dkim_key_type[] =	/* key types */
 {
 	{ "rsa",	DKIM_KEYTYPE_RSA },
 	{ "ed25519",	DKIM_KEYTYPE_ED25519 },
 	{ NULL,		-1 },
 };
-struct nametable *keytypes = prv_keytypes;
 
 static struct nametable prv_querytypes[] =	/* query types */
 {
@@ -203,11 +199,14 @@ struct nametable *mandatory = prv_mandatory;
 **  	code -- code to translate
 **
 **  Return value:
-**  	Pointer to the name matching the provided code, or NULL if not found.
+**  	Pointer to the name matching the provided code, or the empty string,
+**  	if not found.
 */
 
+static const char null_name[] = "";
+
 const char *
-dkim_code_to_name(struct nametable *tbl, const int code)
+dkim_code_to_name(const struct nametable *tbl, const int code)
 {
 	int c;
 
@@ -215,8 +214,8 @@ dkim_code_to_name(struct nametable *tbl, const int code)
 
 	for (c = 0; ; c++)
 	{
-		if (tbl[c].tbl_code == -1 && tbl[c].tbl_name == NULL)
-			return NULL;
+		if (tbl[c].tbl_name == NULL)
+			return null_name;
 
 		if (tbl[c].tbl_code == code)
 			return tbl[c].tbl_name;
@@ -234,8 +233,8 @@ dkim_code_to_name(struct nametable *tbl, const int code)
 **  	A mnemonic code matching the provided name, or -1 if not found.
 */
 
-const int
-dkim_name_to_code(struct nametable *tbl, const char *name)
+int
+dkim_name_to_code(const struct nametable *tbl, const char *name)
 {
 	int c;
 
@@ -243,7 +242,7 @@ dkim_name_to_code(struct nametable *tbl, const char *name)
 
 	for (c = 0; ; c++)
 	{
-		if (tbl[c].tbl_code == -1 && tbl[c].tbl_name == NULL)
+		if (tbl[c].tbl_name == NULL)
 			return -1;
 
 		if (strcasecmp(tbl[c].tbl_name, name) == 0)

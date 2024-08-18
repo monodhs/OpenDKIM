@@ -91,11 +91,7 @@ dkim_atps_check(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
 	int type;
 	int error;
 	int n;
-	int hash = DKIM_HASHTYPE_UNKNOWN;
 	int diglen;
-#ifdef USE_GNUTLS
-	int ghash;
-#endif /* USE_GNUTLS */
 	unsigned int c;
 #ifdef QUERY_CACHE
 	uint32_t ttl;
@@ -145,65 +141,35 @@ dkim_atps_check(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
 	/* confirm it requested a hash we know how to do */
 	if (strcasecmp(ahash, "none") != 0)
 	{
-		hash = dkim_name_to_code(hashes, ahash);
-		if (hash == -1)
+		int hac;
+		dkim_hashalg_t hashalg;
+
+		hac = dkim_name_to_code(dkim_hash_alg, ahash);
+		if (hac == -1)
 			return DKIM_STAT_INVALID;
-	}
 
-	switch (hash)
-	{
-	  case DKIM_HASHTYPE_SHA1:
-		diglen = SHA_DIGEST_LENGTH;
-		break;
+		hashalg = (dkim_hashalg_t) hac;
 
-#  ifdef HAVE_SHA256
-	  case DKIM_HASHTYPE_SHA256:
-		diglen = SHA256_DIGEST_LENGTH;
-		break;
-#  endif /* HAVE_SHA256 */
-
-	  case DKIM_HASHTYPE_UNKNOWN:
-		break;
-
-	  default:
-		assert(0);
-		break;
-	}
-
-	if (hash != DKIM_HASHTYPE_UNKNOWN)
-	{
 		/* construct a hash of the signing domain */
 # ifdef USE_GNUTLS
-		switch (hash)
-		{
-		  case DKIM_HASHTYPE_SHA1:
-			ghash = GNUTLS_DIG_SHA1;
-			break;
-
-		  case DKIM_HASHTYPE_SHA256:
-			ghash = GNUTLS_DIG_SHA256;
-			break;
-
-		  default:
-			assert(0);
-			break;
-		}
-
-		if (gnutls_hash_init(&ctx, ghash) != 0 ||
+		if (gnutls_hash_init(&ctx, dkim_cl_da(hashalg)) != 0 ||
 		    gnutls_hash(ctx, sdomain, strlen(sdomain)) != 0)
-			return DKIM_STAT_INTERNAL;
+			return DKIM_STAT_NORESOURCE;
+		diglen = gnutls_hash_get_len(dkim_cl_da(hashalg));
 		gnutls_hash_deinit(ctx, digest);
 # else /* USE_GNUTLS */
-		switch (hash)
+		switch (hashalg)
 		{
-		  case DKIM_HASHTYPE_SHA1:
+		  case DKIM_HASHALG_SHA1:
+			diglen = SHA_DIGEST_LENGTH;
 			SHA1_Init(&ctx);
 			SHA1_Update(&ctx, sdomain, strlen(sdomain));
 			SHA1_Final(digest, &ctx);
 			break;
 
 #  ifdef HAVE_SHA256
-		  case DKIM_HASHTYPE_SHA256:
+		  case DKIM_HASHALG_SHA256:
+			diglen = SHA256_DIGEST_LENGTH;
 			SHA256_Init(&ctx2);
 			SHA256_Update(&ctx2, sdomain, strlen(sdomain));
 			SHA256_Final(digest, &ctx2);
@@ -214,7 +180,7 @@ dkim_atps_check(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
 			assert(0);
 			break;
 		}
-# endif /* USE_GNUTLS */
+# endif /* !USE_GNUTLS */
 
 		/* base32-encode the hash */
 		memset(b32, '\0', sizeof b32);
@@ -222,7 +188,7 @@ dkim_atps_check(DKIM *dkim, DKIM_SIGINFO *sig, struct timeval *timeout,
 		if (dkim_base32_encode(b32, &buflen,
 		                       digest,
 		                       diglen) >= DKIM_ATPS_QUERYLENGTH)
-			return DKIM_STAT_INTERNAL;
+			return DKIM_STAT_NORESOURCE;
 
 		/* form the query */
 		snprintf(query, sizeof query, "%s._atps.%s", b32, fdomain);

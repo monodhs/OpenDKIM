@@ -171,25 +171,42 @@ typedef int DKIM_SIGERROR;
 **  DKIM_CANON -- canonicalization method
 */
 
-typedef int dkim_canon_t;
+typedef enum {
+	DKIM_CANON_SIMPLE	= 1,	/* as specified in DKIM spec */
+	DKIM_CANON_RELAXED	= 2	/* as specified in DKIM spec */
+} dkim_canon_t;
 
-#define DKIM_CANON_UNKNOWN	(-1)	/* unknown method */
-#define DKIM_CANON_SIMPLE	0	/* as specified in DKIM spec */
-#define DKIM_CANON_RELAXED	1	/* as specified in DKIM spec */
-
-#define DKIM_CANON_DEFAULT	DKIM_CANON_SIMPLE
+typedef enum {
+	DKIM_CANON_ARG_SIMPLE	= DKIM_CANON_SIMPLE,
+	DKIM_CANON_ARG_RELAXED	= DKIM_CANON_RELAXED,
+	DKIM_CANON_ARG_DEFAULT	= DKIM_CANON_SIMPLE
+} dkim_canon_arg_t;
 
 /*
-**  DKIM_SIGN -- signing method
+**  DKIM_SIGNALG -- signing algorithm
 */
 
-typedef int dkim_alg_t;
+typedef enum {
+	DKIM_SIGN_RSASHA1	= 1,	/* an RSA-signed SHA1 digest */
+	DKIM_SIGN_RSASHA256	= 2,	/* an RSA-signed SHA256 digest */
+	DKIM_SIGN_ED25519SHA256	= 3	/* an ED25519-signed SHA256 digest */
+} dkim_signalg_t;
 
-#define DKIM_SIGN_UNKNOWN	(-2)	/* unknown method */
-#define DKIM_SIGN_DEFAULT	(-1)	/* use internal default */
-#define DKIM_SIGN_RSASHA1	0	/* an RSA-signed SHA1 digest */
-#define DKIM_SIGN_RSASHA256	1	/* an RSA-signed SHA256 digest */
-#define DKIM_SIGN_ED25519SHA256	2	/* an ED25519-signed SHA256 digest */
+/*
+**  DKIM_HASHALG -- hash algorithm
+*/
+
+typedef struct { int i; } dkim_hashalg_arg_t;
+
+extern const dkim_hashalg_arg_t DKIM_HASHALG_ARG_SHA1;
+extern const dkim_hashalg_arg_t DKIM_HASHALG_ARG_SHA256;
+extern const dkim_hashalg_arg_t DKIM_HASHALG_ARG_DEFAULT;
+
+#define dkim_hashalg_arg_from_code(a, b)		\
+	do {						\
+		dkim_hashalg_arg_t a ## _x = { (b) };	\
+		a = a ## _x;				\
+	} while (0)
 
 /*
 **  DKIM_QUERY -- query method
@@ -424,8 +441,8 @@ extern void dkim_close __P((DKIM_LIB *lib));
 **  	                 one of the DKIM_CANON_* macros, or -1 for default
 **  	body_canon_alg -- canonicalization algorithm to use for body;
 **  	                  one of the DKIM_CANON_* macros, or -1 for default
-**  	sign_alg -- signing algorithm to use; one of the DKIM_SIGN_* macros,
-**  	            or -1 for default
+**  	hash_alg -- hash algorithm to use; one of the DKIM_HASHALG_ARG_*
+**  	            constants
 **  	length -- number of bytes of the body to sign (-1 == all)
 **  	statp -- pointer to a DKIM_STAT which is updated by this call
 **
@@ -438,9 +455,9 @@ extern DKIM *dkim_sign __P((DKIM_LIB *libhandle, const unsigned char *id,
                             void *memclosure, const dkim_sigkey_t secretkey,
                             const unsigned char *selector,
                             const unsigned char *domain,
-                            dkim_canon_t hdr_canon_alg,
-                            dkim_canon_t body_canon_alg,
-                            dkim_alg_t sign_alg,
+                            dkim_canon_arg_t hdr_canon_alg,
+                            dkim_canon_arg_t body_canon_alg,
+                            dkim_hashalg_arg_t hash_alg,
                             ssize_t length, DKIM_STAT *statp));
 
 /*
@@ -910,7 +927,7 @@ extern DKIM_STAT dkim_sig_getkeysize __P((DKIM_SIGINFO *sig,
 **  	A DKIM_STAT value.
 */
 
-extern DKIM_STAT dkim_sig_getsignalg __P((DKIM_SIGINFO *sig, dkim_alg_t *alg));
+extern DKIM_STAT dkim_sig_getsignalg __P((DKIM_SIGINFO *sig, dkim_signalg_t *alg));
 
 /*
 **  DKIM_SIG_GETSIGNTIME -- retreive signature timestamp after verifying
@@ -1224,8 +1241,8 @@ extern DKIM_STAT dkim_sig_seterror __P((DKIM_SIGINFO *siginfo, int err));
 **  	sigerr -- a DKIM_SIGERROR constant
 **
 **  Return value:
-**  	A pointer to a human-readable string translation of "sigerr", or NULL
-**  	if no such translation exists.
+**  	A pointer to a human-readable string translation of "sigerr", or
+**  	the empty string, if no such translation exists.
 */
 
 extern const char *dkim_sig_geterrorstr __P((DKIM_SIGERROR sigerr));
@@ -1289,7 +1306,8 @@ extern const char *dkim_geterror __P((DKIM *dkim));
 **      result -- DKIM_STAT_* constant to translate
 **
 **  Return value:
-**      Pointer to a text describing "result", or NULL if none exists
+**      Pointer to a text describing "result", or the empty string,
+**      if none exists.
 */
 
 extern const char *dkim_getresultstr __P((DKIM_STAT result));
@@ -1897,18 +1915,6 @@ extern DKIM_STAT dkim_add_querymethod __P((DKIM *, const char *,
 
 extern DKIM_STAT dkim_add_xtag __P((DKIM *, const char *, const char *));
 
-/*
-**  DKIM_PRIVKEY_LOAD -- explicitly try to load the private key
-**
-**  Parameters:
-**  	dkim -- DKIM signing handle
-**
-**  Return value:
-**  	A DKIM_STAT_* constant.
-*/
-
-extern DKIM_STAT dkim_privkey_load __P((DKIM *));
-
 @ATPS_IF@
 /*
 **  DKIM_ATPS_CHECK -- check for Authorized Third Party Signing
@@ -2056,6 +2062,23 @@ extern const u_char * const dkim_should_not_signhdrs[];
 /* required list of headers to sign */
 extern const u_char * const dkim_required_signhdrs[];
 
+struct nametable
+{
+	const char *	tbl_name;
+	const int	tbl_code;
+};
+
+/* signing algorithms */
+extern const struct nametable dkim_sign_alg[];
+/* public key algorithms AKA crypt-algs */
+extern const struct nametable dkim_key_type[];
+/* hash algorithms */
+extern const struct nametable dkim_hash_alg[];
+/* canonicalization algorithms */
+extern const struct nametable dkim_canon[];
+
+extern const char *dkim_code_to_name __P((const struct nametable *tbl, const int code));
+extern int dkim_name_to_code __P((const struct nametable *tbl, const char *name));
 
 #ifdef __cplusplus
 }

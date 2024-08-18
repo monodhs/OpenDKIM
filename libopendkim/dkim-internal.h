@@ -108,21 +108,76 @@ typedef int dkim_set_t;
 #define	DKIM_SETTYPE_KEY	1
 #define DKIM_SETTYPE_SIGREPORT	2
 
-/*
-**  DKIM_HASHTYPE -- types of hashes
-*/
+#if defined(USE_GNUTLS)
 
-#define DKIM_HASHTYPE_UNKNOWN	(-1)
-#define DKIM_HASHTYPE_SHA1	0
-#define DKIM_HASHTYPE_SHA256	1
+# include <gnutls/gnutls.h>
 
 /*
-**  DKIM_KEYTYPE -- types of keys
+** using enumeration-constants from
+** enum typedef'ed to gnutls_digest_algorithm_t
+** using enumeration-constants from
+** enum typedef'ed to gnutls_mac_algorithm_t
+** introducing enumeration-constants of type int
 */
 
-#define	DKIM_KEYTYPE_UNKNOWN	(-1)
-#define	DKIM_KEYTYPE_RSA	0
-#define	DKIM_KEYTYPE_ED25519	1
+enum {
+	DKIM_CL_DA_SHA1		= GNUTLS_DIG_SHA1,
+	DKIM_CL_DA_SHA256	= GNUTLS_DIG_SHA256,
+	DKIM_CL_DA_DEFAULT	= GNUTLS_DIG_NULL
+};
+
+#define dkim_cl_da(x)		((gnutls_digest_algorithm_t)(int)(x))
+
+/*
+** using enumeration-constants from
+** enum typedef'ed to gnutls_pk_algorithm_t
+** introducing enumeration-constants of type int
+*/
+
+enum {
+	DKIM_CL_PKA_RSA		= GNUTLS_PK_RSA,
+	DKIM_CL_PKA_ED25519	= GNUTLS_PK_EDDSA_ED25519
+};
+
+#define dkim_cl_pka(x)		((gnutls_pk_algorithm_t)(int)(x))
+
+#else /* USE_GNUTLS */
+
+/* ultimately for openssl/obj_mac.h */
+# include <openssl/evp.h>
+
+/* #define'd as int in openssl/obj_mac.h */
+enum {
+	DKIM_CL_DA_SHA1		= NID_sha1,
+	DKIM_CL_DA_SHA256	= NID_sha256,
+	DKIM_CL_DA_DEFAULT	= NID_undef
+};
+        
+/* #define'd in openssl/evp.h */
+enum {
+	DKIM_CL_PKA_RSA		= EVP_PKEY_RSA,		/* NID_rsaEncryption */
+	DKIM_CL_PKA_ED25519	= EVP_PKEY_ED25519	/* NID_ED25519 */
+};
+
+#endif /* !USE_GNUTLS */
+
+/*
+**  DKIM_HASHALG -- hash algorithm
+*/
+
+typedef enum {
+	DKIM_HASHALG_SHA1	= DKIM_CL_DA_SHA1,
+	DKIM_HASHALG_SHA256	= DKIM_CL_DA_SHA256
+} dkim_hashalg_t;
+
+/*
+**  DKIM_CRYPTALG -- public key algorithm
+*/
+
+typedef enum {
+	DKIM_KEYTYPE_RSA	= DKIM_CL_PKA_RSA,
+	DKIM_KEYTYPE_ED25519	= DKIM_CL_PKA_ED25519
+} dkim_keytype_t;
 
 /*
 **  DKIM_SET -- a set of parameters and values

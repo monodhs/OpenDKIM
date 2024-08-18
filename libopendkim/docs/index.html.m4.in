@@ -45,11 +45,6 @@ package, that uses <tt>libopendkim</tt> to implement this facility. <p>
  </tr>
 
  <tr>
-  <td> <a href="dkim_alg_t.html"> <tt>dkim_alg_t</tt> </a> </td>
-  <td> A signature generation/verification method. </td>
- </tr>
-
- <tr>
   <td> <a href="dkim_atps_t.html"> <tt>dkim_atps_t</tt> </a> </td>
   <td> An Authorized Third-Party Signer test result. </td>
  </tr>
@@ -67,6 +62,11 @@ package, that uses <tt>libopendkim</tt> to implement this facility. <p>
  <tr>
   <td> <a href="dkim_dnssec.html"> <tt>DKIM_DNSSEC</tt> </a> </td>
   <td> Key record security evaluation codes. </td>
+ </tr>
+
+ <tr>
+  <td> <a href="dkim_hashalg_t.html"> <tt>dkim_hashalg_t</tt> </a> </td>
+  <td> A hash algorithm. </td>
  </tr>
 
  <tr>
@@ -92,6 +92,11 @@ package, that uses <tt>libopendkim</tt> to implement this facility. <p>
  <tr>
   <td> <a href="dkim_sigerror.html"> <tt>DKIM_SIGERROR</tt> </a> </td>
   <td> Signature evaluation error codes. </td>
+ </tr>
+
+ <tr>
+  <td> <a href="dkim_signalg_t.html"> <tt>dkim_signalg_t</tt> </a> </td>
+  <td> A signature generation/verification method. </td>
  </tr>
 
  <tr>

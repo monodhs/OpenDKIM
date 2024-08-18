@@ -1,0 +1,55 @@
+<html>
+<head><title>dkim_signalg_t</title></head>
+<body>
+<!--
+-->
+<h1>dkim_signalg_t</h1>
+<p align="right"><a href="index.html">[back to index]</a></p>
+
+<table border="0" cellspacing=4 cellpadding=4>
+<!----------- Description ---------->
+<tr><th valign="top" align=left>DESCRIPTION</th><td>
+<table border="1" cellspacing=1 cellpadding=4>
+<tr align="left" valign=top>
+<th width="80">Purpose</th>
+<td>A <tt>dkim_signalg_t</tt> is a value from an enumerated list of the possible
+    message signing algorithms available.  It can be optained via
+    <a href="dkim_sig_getsignalg.html"> <tt>dkim_sig_getsignalg()</tt></a>
+    after verification of a message.  It need not be passed to the
+    <a href="dkim_sign.html"><tt>dkim_sign()</tt></a> or
+    <a href="dkim_verify.html"><tt>dkim_verify()</tt></a> functions
+    as they will determine the message signing algorithm for signing based
+    on the type of key and hash algorithm provided and for verification
+    based on the signature on an arriving message.</td>
+</tr>
+<tr align="left" valign=top>
+<th width="80">Possible Values</th>
+<td>
+<ul>
+<li> <tt>DKIM_SIGN_RSASHA1</tt> -- use an RSA-signed SHA1 hash of the message's
+     headers and body
+<li> <tt>DKIM_SIGN_RSASHA256</tt> -- use an RSA-signed SHA256 hash of the
+     message's headers and body
+<li> <tt>DKIM_SIGN_ED25519SHA256</tt> -- use an Ed25519-signed SHA256 hash of the
+     message's headers and body
+</ul>
+</td>
+</tr>
+</table>
+
+<!----------- Notes ---------->
+<tr>
+<th valign="top" align=left>NOTES</th> 
+<td>
+<ul>
+<li>The <tt>DKIM_SIGN_RSASHA256</tt> and <tt>DKIM_SIGN_ED25519SHA256</tt>
+    message signing algorithms are only available if the cryptography library
+    available at compile-time supported the respective SHA-256
+    and Ed25519 algorithms.
+</ul>
+</td>
+</tr>
+</table>
+
+</body>
+</html>

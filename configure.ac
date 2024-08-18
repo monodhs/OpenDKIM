@@ -454,6 +454,15 @@ AC_DEFUN([LIB_MANNOTICE],
                 [AC_SUBST(TR_UP(TR_US($1))[_MANNOTICE], $notincluded)])
          ])
 
+AC_DEFUN([ENABLE_LIB_FEATURE],
+         [[enable_]TR_US($1)[="yes"]
+          CODE_ENABLED(TR_UP(TR_US($1)))
+          DOC_ENABLED(TR_UP(TR_US($1)))
+          MAN_ENABLED(TR_UP(TR_US($1)))
+          AC_DEFINE(TR_UP(TR_US($1)), 1, [enable $1 feature])
+          APPEND_TO_LIBFS([+$1])
+         ])
+
 #
 # libtool
 #
@@ -497,6 +506,13 @@ STANDARD_LIB_FEATURE([deep-argument-copies],
 	[do not make deep copies of arguments in libopendkim allocation,
 options, and related API calls],
 	[deep argument copies])
+
+ENABLE_LIB_FEATURE([cb8-automatic-signalg-selection])
+
+AS_IF([test x"$enable_]TR_US(tas-support)[" != x"no" -a \
+            x"$enable_]TR_US(cb8-automatic-signalg-selection)[" != x"no"],
+	[AC_MSG_ERROR(m4_normalize([feature 'tas-support' conflicts with
+	                            feature 'cb8-automatic-signalg-selection']))])
 
 #
 # opendkim

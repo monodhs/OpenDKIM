@@ -43,8 +43,9 @@ Retrieve a text conversion for a <tt>DKIM_STAT</tt> result code.
 <tr><th valign="top" align=left>RETURN VALUES</th><td>
     <table border="1" cellspacing=0>
     <tr bgcolor="#dddddd"><th>Value</th><th>Description</th></tr>
-    <tr valign="top"><td><tt>NULL</tt></td>
-	<td>The value of <tt>result</tt> was not recognized.
+    <tr valign="top"><td>(empty string)</td>
+	<td>A pointer to a NULL-terminated empty string if the value
+	of <tt>result</tt> was not recognized.
 	</td></tr>
     <tr valign="top"><td>otherwise</td>
 	<td>A pointer to a NULL-terminated string containing a text

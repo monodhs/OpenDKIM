@@ -4,7 +4,6 @@
 dist_doc_DATA = dkim.html \
 	dkim_add_querymethod.html \
 	dkim_add_xtag.html \
-	dkim_alg_t.html \
 	dkim_atps_check.html \
 	dkim_atps_t.html \
 	dkim_body.html \
@@ -46,6 +45,7 @@ dist_doc_DATA = dkim.html \
 	dkim_getsignature.html \
 	dkim_getsslbuf.html \
 	dkim_getuser.html \
+	dkim_hashalg_t.html \
 	dkim_header.html \
 	dkim_init.html \
 	dkim_key_syntax.html \
@@ -100,6 +100,7 @@ dist_doc_DATA = dkim.html \
 	dkim_siginfo.html \
 	dkim_sigkey_t.html \
 	dkim_sign.html \
+	dkim_signalg_t.html \
 	dkim_signhdrs.html \
 	dkim_ssl_version.html \
 	dkim_stat.html \

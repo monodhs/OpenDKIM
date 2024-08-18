@@ -118,24 +118,55 @@ struct dkim_set
 	struct dkim_set *	set_next;
 };
 
+/* public key algorithm identification and common parameters */
+struct dkim_pki
+{
+	dkim_keytype_t		pki_id;
+	unsigned int		pki_keysize;
+	size_t			pki_sigsize;
+};
+
+/* public key algorithm key material */
+struct dkim_pkm
+{
+#if defined(USE_GNUTLS)
+	union {
+	  struct {
+		gnutls_x509_privkey_t	xpriv;
+		gnutls_privkey_t	priv;
+	  } s;
+	  struct {
+		gnutls_pubkey_t		pub;
+	  } v;
+	} u;
+#else /* USE_GNUTLS */
+	BIO *				pkm_bio;
+	EVP_PKEY *			pkm_pkey;
+	RSA *				pkm_rsa;
+#endif /* !USE_GNUTLS */
+};
+
+#define pkm_xpriv	u.s.xpriv
+#define pkm_priv	u.s.priv
+#define pkm_pub		u.v.pub
+
+/* combination of a pointer to and the size of a contiguous memory region */
+struct alen
+{
+	u_char *	addr;
+	size_t		len;
+};
+        
 /* struct dkim_siginfo -- signature information for use by the caller */
 struct dkim_siginfo
 {
-	int			sig_dnssec_key;
+	struct dkim_pki		sig_pki;
 	u_int			sig_flags;
-	u_int			sig_error;
 	u_int			sig_bh;
-	u_int			sig_version;
-	u_int			sig_hashtype;
-	u_int			sig_keytype;
-	u_int			sig_keybits;
-	size_t			sig_siglen;
-	size_t			sig_keylen;
-	size_t			sig_b64keylen;
-	dkim_query_t		sig_query;
-	dkim_alg_t		sig_signalg;
 	dkim_canon_t		sig_hdrcanonalg;
 	dkim_canon_t		sig_bodycanonalg;
+	dkim_hashalg_t		sig_hashalg;
+	dkim_signalg_t		sig_signalg;
 	uint64_t		sig_timestamp;
 #if defined(DEEP_ARGUMENT_COPIES)
 	u_char *		sig_domain;
@@ -144,17 +175,40 @@ struct dkim_siginfo
 	const u_char *		sig_domain;
 	const u_char *		sig_selector;
 #endif /* !DEEP_ARGUMENT_COPIES */
-	u_char *		sig_sig;
-	u_char *		sig_key;
-	u_char *		sig_b64key;
+	union {
+	  struct {
+	    struct dkim_pkm	pkm;
+	  } s;
+	  struct {
+	    struct alen		sig;
+	    struct alen		key;
+	    struct dkim_set *	taglist;
+	    struct dkim_set *	keytaglist;
+	    dkim_query_t	query;
+	    int			dnssec;
+	    u_int		error;
+	  } v;
+	} u;
 	void *			sig_context;
-	void *			sig_signature;
 	struct dkim_canon *	sig_hdrcanon;
 	struct dkim_canon *	sig_bodycanon;
-	struct dkim_set *	sig_taglist;
-	struct dkim_set *	sig_keytaglist;
 	struct dkim_dstring *	sig_sslerrbuf;
 };
+
+#define sig_pkalg	sig_pki.pki_id
+#define sig_keybits	sig_pki.pki_keysize
+
+#define sig_pkm		u.s.pkm
+
+#define sig_sig		u.v.sig.addr
+#define sig_siglen	u.v.sig.len
+#define sig_key		u.v.key.addr
+#define sig_keylen	u.v.key.len
+#define sig_taglist	u.v.taglist
+#define sig_keytaglist	u.v.keytaglist
+#define sig_query	u.v.query
+#define sig_dnssec_key	u.v.dnssec
+#define sig_error	u.v.error
 
 #ifdef USE_GNUTLS
 /* struct dkim_sha -- stuff needed to do a sha hash */
@@ -201,7 +255,7 @@ struct dkim_canon
 	_Bool			canon_blankline;
 	int			canon_lastchar;
 	int			canon_bodystate;
-	u_int			canon_hashtype;
+	dkim_hashalg_t		canon_hashtype;
 	u_int			canon_blanks;
 	size_t			canon_hashbuflen;
 	size_t			canon_hashbufsize;
@@ -215,32 +269,6 @@ struct dkim_canon
 	struct dkim_dstring *	canon_buf;
 	struct dkim_header *	canon_sigheader;
 	struct dkim_canon *	canon_next;
-};
-
-/* struct dkim_crypto -- stuff needed to do RSA sign/verify */
-struct dkim_crypto
-{
-#ifdef USE_GNUTLS
-	size_t			crypto_rsaoutlen;
-	unsigned int		crypto_keysize;
-	gnutls_x509_privkey_t	crypto_key;
-	gnutls_privkey_t	crypto_privkey;
-	gnutls_pubkey_t		crypto_pubkey;
-	gnutls_datum_t		crypto_sig;
-	gnutls_datum_t		crypto_digest;
-	gnutls_datum_t 		crypto_rsaout;
-	gnutls_datum_t 		crypto_keydata;
-#else /* USE_GNUTLS */
-	u_char			crypto_pad;
-	int			crypto_keysize;
-	size_t			crypto_inlen;
-	size_t			crypto_outlen;
-	EVP_PKEY *		crypto_pkey;
-	void *			crypto_key;
-	BIO *			crypto_keydata;
-	u_char *		crypto_in;
-	u_char *		crypto_out;
-#endif /* USE_GNUTLS */
 };
 
 #if defined(TAS_SUPPORT)
@@ -308,11 +336,10 @@ struct dkim
 	size_t			dkim_b64siglen;
 	size_t			dkim_keylen;
 	size_t			dkim_errlen;
-	uint64_t		dkim_timestamp;
   	struct dkim_qmethod *	dkim_querymethods;
 	dkim_canon_t		dkim_hdrcanonalg;
 	dkim_canon_t		dkim_bodycanonalg;
-	dkim_alg_t		dkim_signalg;
+	dkim_hashalg_arg_t	dkim_hashalg;
 #ifdef _FFR_ATPS
 	_Bool			dkim_atps;
 #endif /* _FFR_ATPS */
@@ -350,7 +377,6 @@ struct dkim
 	u_char *		dkim_tmpdir;
 #endif /* DEBUG_FEATURES */
 	DKIM_SIGINFO *		dkim_signature;
-	void *			dkim_keydata;
 	void *			dkim_closure;
 	const void *		dkim_user_context;
 #ifdef _FFR_RESIGN

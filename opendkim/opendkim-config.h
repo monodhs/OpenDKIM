@@ -265,7 +265,9 @@ struct configdef dkimf_config[] =
 #ifdef USE_LUA
 	{ "SetupPolicyScript",		CONFIG_TYPE_STRING,	FALSE },
 #endif /* USE_LUA */
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	{ "SignatureAlgorithm",		CONFIG_TYPE_STRING,	FALSE },
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 	{ "SignatureTTL",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "SignHeaders",		CONFIG_TYPE_STRING,	FALSE },
 #if defined(SINGLE_SIGNING) || defined(USE_LUA)

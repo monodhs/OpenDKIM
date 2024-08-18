@@ -39,7 +39,10 @@ include(MANPAGE_MACROS)dnl
 @SINGLE_SIGNING_MANIF@
 [\-s selector]
 @SINGLE_SIGNING_MANENDIF@
+@CB8_AUTOMATIC_SIGNALG_SELECTION_MANIF@
+@CB8_AUTOMATIC_SIGNALG_SELECTION_MANELSE@
 [\-S signalg]
+@CB8_AUTOMATIC_SIGNALG_SELECTION_MANENDIF@
 @PRODUCTION_TESTS_MANIF@
 [\-t testfiles]
 @PRODUCTION_TESTS_MANENDIF@
@@ -425,6 +428,8 @@ See the
 .B DKIM
 specification for details.
 @SINGLE_SIGNING_MANENDIF@
+@CB8_AUTOMATIC_SIGNALG_SELECTION_MANIF@
+@CB8_AUTOMATIC_SIGNALG_SELECTION_MANELSE@
 .TP
 .I \-S signalg
 Selects the signing algorithm to use when generating signatures.
@@ -433,6 +438,7 @@ The default is
 .I rsa-sha256
 if it is available, otherwise it will be
 .I rsa-sha1.
+@CB8_AUTOMATIC_SIGNALG_SELECTION_MANENDIF@
 @PRODUCTION_TESTS_MANIF@
 .TP
 .I \-t testfiles

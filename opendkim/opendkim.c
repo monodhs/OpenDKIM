@@ -345,10 +345,12 @@ struct dkimf_config
 	size_t		conf_finalfuncsz;	/* final function size */
 #endif /* USE_LUA */
 	ssize_t		conf_signbytes;		/* bytes to sign */
-	dkim_canon_t 	conf_hdrcanon;		/* canon. method for headers */
-	dkim_canon_t 	conf_bodycanon;		/* canon. method for body */
+	dkim_canon_arg_t conf_hdrcanon;		/* canon. method for headers */
+	dkim_canon_arg_t conf_bodycanon;	/* canon. method for body */
 	unsigned long	conf_sigttl;		/* signature TTLs */
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	dkim_alg_t	conf_signalg;		/* signing algorithm */
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 	struct config *	conf_data;		/* configuration data */
 #if defined(DEBUG_FEATURES)
 #ifdef HAVE_CURL_EASY_STRERROR
@@ -378,7 +380,9 @@ struct dkimf_config
 #if defined(SINGLE_SIGNING)
 	char *		conf_domlist;		/* signing domain list */
 #endif /* SINGLE_SIGNING */
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	char *		conf_signalgstr;	/* signature algorithm string */
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 	char *		conf_modestr;		/* mode string */
 	char *		conf_canonstr;		/* canonicalization(s) string */
 	char *		conf_siglimit;		/* signing limits */
@@ -581,9 +585,11 @@ struct msgctx
 	int		mctx_mresult;		/* SMFI status code */
 #endif /* USE_LUA */
 	int		mctx_status;		/* status to report back */
-	dkim_canon_t	mctx_hdrcanon;		/* header canonicalization */
-	dkim_canon_t	mctx_bodycanon;		/* body canonicalization */
+	dkim_canon_arg_t mctx_hdrcanon;		/* header canonicalization */
+	dkim_canon_arg_t mctx_bodycanon;	/* body canonicalization */
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	dkim_alg_t	mctx_signalg;		/* signature algorithm */
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 #ifdef USE_UNBOUND
 	int		mctx_dnssec_key;	/* DNSSEC results for key */
 #endif /* USE_UNBOUND */
@@ -744,21 +750,6 @@ struct lookup dkimf_values[] =
 	{ "reject",		DKIMF_MILTER_REJECT },
 	{ "t",			DKIMF_MILTER_TEMPFAIL },
 	{ "tempfail",		DKIMF_MILTER_TEMPFAIL },
-	{ NULL,			-1 },
-};
-
-struct lookup dkimf_canon[] =
-{
-	{ "relaxed",		DKIM_CANON_RELAXED },
-	{ "simple",		DKIM_CANON_SIMPLE },
-	{ NULL,			-1 },
-};
-
-struct lookup dkimf_sign[] =
-{
-	{ "rsa-sha1",		DKIM_SIGN_RSASHA1 },
-	{ "rsa-sha256",		DKIM_SIGN_RSASHA256 },
-	{ "ed25519-sha256",	DKIM_SIGN_ED25519SHA256 },
 	{ NULL,			-1 },
 };
 
@@ -1432,8 +1423,10 @@ dkimf_xs_signfor(lua_State *l)
 	}
 	else
 	{
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 		if (status > 0)
 			msg->mctx_signalg = conf->conf_signalg;
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 
 		lua_pushnumber(l, status);
 		return 1;
@@ -2375,7 +2368,9 @@ dkimf_xs_requestsig(lua_State *l)
 	if (resign)
 		dfc->mctx_resign = TRUE;
 #endif /* _FFR_RESIGN */
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	dfc->mctx_signalg = conf->conf_signalg;
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 
 	lua_pushnumber(l, 1);
 
@@ -5038,7 +5033,8 @@ dkimf_securefile(const char *path, ino_t *ino, uid_t myuid, char *err,
 **
 **  Parameters:
 **  	buf -- key buffer
-**  	buflen -- pointer to key buffer's length (updated)
+**  	buflen -- pointer to key buffer's length
+**  	keydatasz -- size of the actual key material (updated, if loaded)
 **  	insecure -- key is insecure (returned)
 **  	error -- buffer to receive error string
 **  	errlen -- bytes available at "error"
@@ -5052,7 +5048,7 @@ dkimf_securefile(const char *path, ino_t *ino, uid_t myuid, char *err,
 */
 
 static _Bool
-dkimf_loadkey(char *buf, size_t *buflen,
+dkimf_loadkey(char *buf, size_t buflen, size_t * keydatasz,
 #if defined(REQUIRE_SAFE_KEYS)
               _Bool *insecure,
 #endif /* REQUIRE_SAFE_KEYS */
@@ -5063,14 +5059,15 @@ dkimf_loadkey(char *buf, size_t *buflen,
 #endif /* REQUIRE_SAFE_KEYS */
 
 	assert(buf != NULL);
-	assert(buflen != NULL);
+	assert(keydatasz != NULL);
 
 	if (buf[0] == '/' || (buf[0] == '.' && buf[1] == '/') ||
 	    (buf[0] == '.' && buf[1] == '.' && buf[2] == '/'))
 	{
 		int fd;
 		int status;
-		ssize_t rlen;
+		size_t rlen;
+		ssize_t rres;
 		struct stat s;
 
 		fd = open(buf, O_RDONLY);
@@ -5109,12 +5106,14 @@ dkimf_loadkey(char *buf, size_t *buflen,
 			*insecure = FALSE;
 #endif /* REQUIRE_SAFE_KEYS */
 
-		*buflen = MIN(s.st_size, *buflen);
-		rlen = read(fd, buf, *buflen);
+		rlen = MIN(s.st_size, buflen);
+		rres = read(fd, buf, rlen);
 		close(fd);
 
-		if (rlen < *buflen)
+		if (rres < 0 || (size_t) rres < rlen)
 			return FALSE;
+
+		*keydatasz = rlen;
 	}
 
 	return TRUE;
@@ -5143,14 +5142,29 @@ static int
 dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, const char *keyname,
                       const u_char *signer, ssize_t signlen, const u_char * rdomain)
 {
-	_Bool found = FALSE;
-	size_t keydatasz = 0;
 	struct signreq *new;
-	struct dkimf_db_data dbd[3];
-	u_char keydata[MAXBUFRSZ + 1];
+	struct dkimf_db_data dbd[4];
 	u_char domain[DKIM_MAXHOSTNAMELEN + 1];
-	char selector[BUFRSZ + 1];
+	u_char selector[BUFRSZ + 1];
+	u_char hashalg_or_keydata[MAXBUFRSZ + 1];
+	u_char keydata_or_nothing[MAXBUFRSZ + 1];
+#define domain_INDEX			0
+#define selector_INDEX			domain_INDEX + 1
+#define hashalg_or_keydata_INDEX	selector_INDEX + 1
+#define keydata_or_nothing_INDEX	hashalg_or_keydata_INDEX + 1
+#define BBB(b)				dbd[b ## _INDEX].dbdata_buffer
+#define LLL(b)				dbd[b ## _INDEX].dbdata_buflen
+#define FFF(b)				dbd[b ## _INDEX].dbdata_flags
+#define SSS(b)				(sizeof(b) - 1)
+	const u_char * auid = NULL;
+	size_t auidlen;
+	u_char * keydata = keydata_or_nothing;
+	size_t keybufsz = SSS(keydata_or_nothing);
+	size_t keydatasz = 0;
+	dkim_hashalg_arg_t hashalg = DKIM_HASHALG_ARG_DEFAULT;
 	char err[BUFRSZ + 1];
+	size_t allocsz;
+	u_char * p;
 
 	assert(dfc != NULL);
 #if !defined(SINGLE_SIGNING)
@@ -5175,6 +5189,8 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, const char *keyname
 	if (keytable != NULL)
 #endif /* SINGLE_SIGNING */
 	{
+		int dbrv;
+		_Bool found = FALSE;
 #if defined(REQUIRE_SAFE_KEYS)
 		_Bool insecure;
 #endif /* REQUIRE_SAFE_KEYS */
@@ -5183,22 +5199,34 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, const char *keyname
 		assert(keyname != NULL);
 #endif /* SINGLE_SIGNING */
 
-		memset(domain, '\0', sizeof domain);
-		memset(selector, '\0', sizeof selector);
-		memset(keydata, '\0', sizeof keydata);
+		CLEAR(domain);
+		CLEAR(selector);
+		CLEAR(hashalg_or_keydata);
+		CLEAR(keydata_or_nothing);
 
-		dbd[0].dbdata_buffer = (char *) domain;
-		dbd[0].dbdata_buflen = sizeof domain - 1;
-		dbd[0].dbdata_flags = DKIMF_DB_DATA_OPTIONAL;
-		dbd[1].dbdata_buffer = selector;
-		dbd[1].dbdata_buflen = sizeof selector - 1;
-		dbd[1].dbdata_flags = DKIMF_DB_DATA_OPTIONAL;
-		dbd[2].dbdata_buffer = (char *) keydata;
-		dbd[2].dbdata_buflen = sizeof keydata - 1;
-		dbd[2].dbdata_flags = DKIMF_DB_DATA_OPTIONAL;
+#define EEE(b)	(LLL(b) == 0 || LLL(b) == (size_t) -1)
+#define AAA(b, s)					\
+	BBB(b) = (char *) (s);				\
+	LLL(b) = strlen((char *) (s))
+#define DDD(b, f)					\
+	BBB(b) = (char *) b;				\
+	LLL(b) = SSS(b);				\
+	FFF(b) = (f)
+#define TTT(b)						\
+	do {						\
+		if (LLL(b) > SSS(b))			\
+			LLL(b) = SSS(b);		\
+		BBB(b)[LLL(b)] = '\0';			\
+	} while (0)
 
-		if (dkimf_db_get(keytable, keyname, strlen(keyname),
-		                 dbd, 3, &found) != 0)
+		DDD(domain,             0);
+		DDD(selector,           0);
+		DDD(hashalg_or_keydata, 0);
+		DDD(keydata_or_nothing, DKIMF_DB_DATA_OPTIONAL);
+
+		dbrv = dkimf_db_get(keytable, keyname, strlen(keyname),
+		                    dbd, ((sizeof dbd)/(sizeof dbd[0])), &found);
+		if (dbrv != 0 && !found)
 		{
 			memset(err, '\0', sizeof err);
 			(void) dkimf_db_strerror(keytable, err, sizeof err);
@@ -5221,61 +5249,133 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, const char *keyname
 
 			return -1;
 		}
-
-		if (!found)
-			return 1;
-
-		if (dbd[0].dbdata_buflen == 0 ||
-		    dbd[0].dbdata_buflen == (size_t) -1 ||
-		    dbd[1].dbdata_buflen == 0 ||
-		    dbd[1].dbdata_buflen == (size_t) -1 ||
-		    dbd[2].dbdata_buflen == 0 ||
-		    dbd[2].dbdata_buflen == (size_t) -1)
+		else if (dbrv != 0 && found)
 		{
 			if (dolog)
 			{
 				syslog(LOG_ERR,
-				       "KeyTable entry for '%s' corrupt",
+				       "%s: KeyTable entry for '%s' "
+				       "is incomplete",
+				       dfc->mctx_jobid,
+				       keyname);
+			}
+
+			return 2;
+		}
+		else if (!found)
+			return 1;
+
+		/* null-terminate all non-optional fields' strings */
+		TTT(domain);
+		TTT(selector);
+		TTT(hashalg_or_keydata);
+
+		if (IS_EMPTY(domain) || IS_EMPTY(selector))
+		{
+			if (dolog)
+			{
+				syslog(LOG_ERR,
+				       "%s: KeyTable entry for '%s' "
+				       "has no domain or selector",
+				       dfc->mctx_jobid,
 				       keyname);
 			}
 
 			return 2;
 		}
 
-		if (IS_PHLDR(domain) && IS_EMPTY(rdomain))
+		if (EEE(keydata_or_nothing))
 		{
-			if (dolog)
+			if (IS_EMPTY(hashalg_or_keydata))
 			{
-				syslog(LOG_ERR,
-				       "KeyTable entry for '%s' cannot be resolved",
-				       keyname);
+				if (dolog)
+				{
+					syslog(LOG_ERR,
+					       "%s: KeyTable entry for '%s' "
+					       "has no keydata",
+					       dfc->mctx_jobid,
+					       keyname);
+				}
+
+				return 2;
 			}
 
-			return 3;
+			keydata = hashalg_or_keydata;
+			keybufsz = SSS(hashalg_or_keydata);
+			keydatasz = LLL(hashalg_or_keydata);
+		}
+		else
+		{
+			/* also null-terminate the keydata field's string */
+			TTT(keydata_or_nothing);
+			keydatasz = LLL(keydata_or_nothing);
+
+			if (!IS_EMPTY(hashalg_or_keydata))
+			{
+				int hac;
+
+				hac = dkim_name_to_code(dkim_hash_alg,
+				                        (char *) hashalg_or_keydata);
+				if (hac == -1)
+				{
+					if (dolog)
+					{
+						syslog(LOG_ERR,
+						       "%s: KeyTable entry "
+						       "for '%s' has "
+						       "invalid hash-alg '%s'",
+						       dfc->mctx_jobid,
+						       keyname,
+						       hashalg_or_keydata);
+					}
+
+					return 2;
+				}
+
+				dkim_hashalg_arg_from_code(hashalg, hac);
+			}
+		}
+
+		if (IS_PHLDR(domain))
+		{
+			if (IS_EMPTY(rdomain))
+			{
+				if (dolog)
+				{
+					syslog(LOG_ERR,
+					       "%s: KeyTable entry for '%s' "
+					       "cannot be resolved",
+					       dfc->mctx_jobid,
+					       keyname);
+				}
+
+				return 3;
+			}
+
+			AAA(domain, rdomain);
 		}
 
 		if (keydata[0] == '/')
 		{
-			const u_char *d;
-			u_char tmpdata[MAXBUFRSZ + 1];
+			size_t s;
+			u_char tmp[MAXBUFRSZ + 1];
 
-			memset(tmpdata, '\0', sizeof tmpdata);
+			s = dkimf_reptoken(tmp, sizeof(tmp), keydata, (u_char *) BBB(domain));
+			keydatasz = MIN(s, keybufsz);
 
-			if (IS_PHLDR(domain))
-				d = rdomain;
-			else
-				d = domain;
-
-			dkimf_reptoken(tmpdata, sizeof tmpdata, keydata, d);
-
-			memcpy(keydata, tmpdata, sizeof keydata);
+			memcpy(keydata, tmp, keydatasz);
+			keydata[keydatasz] = '\0';
 		}
 
-		keydatasz = sizeof keydata - 1;
+#undef EEE
+#undef AAA
+#undef DDD
+#undef TTT
+
 #if defined(REQUIRE_SAFE_KEYS)
 		insecure = FALSE;
 #endif /* REQUIRE_SAFE_KEYS */
-		if (!dkimf_loadkey(dbd[2].dbdata_buffer, &keydatasz,
+		if (!dkimf_loadkey((char *) keydata, keybufsz, &keydatasz,
 #if defined(REQUIRE_SAFE_KEYS)
 		                   &insecure,
 #endif /* REQUIRE_SAFE_KEYS */
@@ -5283,8 +5383,10 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, const char *keyname
 		{
 			if (dolog)
 			{
-				syslog(LOG_ERR, "can't load key from %s: %s",
-				       dbd[2].dbdata_buffer, err);
+				syslog(LOG_ERR,
+				       "%s: Cannot load key from '%s': %s",
+				       dfc->mctx_jobid,
+				       keydata, err);
 			}
 
 			return 2;
@@ -5310,55 +5412,64 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, const char *keyname
 #endif /* REQUIRE_SAFE_KEYS */
 	}
 
-	new = malloc(sizeof *new);
-	if (new == NULL)
-		return -1;
-
-	new->srq_next = NULL;
-	new->srq_dkim = NULL;
-#if defined(SINGLE_SIGNING)
-	new->srq_domain = NULL;
-	new->srq_selector = NULL;
-	new->srq_keydata = NULL;
-#endif /* SINGLE_SIGNING */
-	new->srq_signlen = signlen;
-	if (signer != NULL && !IS_EMPTY(signer))
-		new->srq_signer = (u_char *) strdup((char *) signer);
-	else
-		new->srq_signer = NULL;
-
+	allocsz = sizeof(*new);
 #if defined(SINGLE_SIGNING)
 	if (keytable != NULL)
 #endif /* SINGLE_SIGNING */
 	{
-		if (IS_PHLDR(domain))
-			new->srq_domain = (u_char *) strdup((char *) rdomain);
-		else
-			new->srq_domain = (u_char *) strdup((char *) domain);
-#if !defined(SINGLE_SIGNING)
-		if (new->srq_domain == NULL)
-			goto relsig;
-#endif /* !SINGLE_SIGNING */
-
-		new->srq_selector = (u_char *) strdup((char *) selector);
-#if !defined(SINGLE_SIGNING)
-		if (new->srq_selector == NULL)
-			goto reldom;
-#endif /* !SINGLE_SIGNING */
-
-		new->srq_keydata = (void *) malloc(keydatasz + 1);
-		if (new->srq_keydata == NULL)
-		{
-#if defined(SINGLE_SIGNING)
-			free(new);
-			return -1;
-#else /* SINGLE_SIGNING */
-			goto relsel;
-#endif /* !SINGLE_SIGNING */
-		}
-		memset(new->srq_keydata, '\0', keydatasz + 1);
-		memcpy(new->srq_keydata, dbd[2].dbdata_buffer, keydatasz);
+		allocsz += LLL(domain) + 1 + LLL(selector) + 1 + keydatasz + 1;
 	}
+	if (signer != NULL && !IS_EMPTY(signer))
+	{
+		auid = signer;
+		auidlen = strlen((char *) signer);
+		allocsz += auidlen + 1;
+	}
+
+	if ((new = malloc(allocsz)) == NULL)
+		return -1;
+
+	p = &(new->srq_data[0]);
+
+#if defined(SINGLE_SIGNING)
+
+	new->srq_domain = NULL;
+	new->srq_selector = NULL;
+	new->srq_keydata = NULL;
+
+	if (keytable != NULL)
+#endif /* SINGLE_SIGNING */
+	{
+		memcpy(p, BBB(domain), LLL(domain));
+		p[LLL(domain)] = '\0';
+		new->srq_domain = p;
+		p = p + LLL(domain) + 1;
+
+		memcpy(p, BBB(selector), LLL(selector));
+		p[LLL(selector)] = '\0';
+		new->srq_selector = p;
+		p = p + LLL(selector) + 1;
+
+		memcpy(p, keydata, keydatasz);
+		p[keydatasz] = '\0';
+		new->srq_keydata = p;
+		p = p + keydatasz + 1;
+	}
+
+	if (auid != NULL)
+	{
+		memcpy(p, auid, auidlen);
+		p[auidlen] = '\0';
+		new->srq_signer = p;
+	}
+	else
+		new->srq_signer = NULL;
+
+	new->srq_hashalg = hashalg;
+	new->srq_signlen = signlen;
+
+	new->srq_dkim = NULL;
+	new->srq_next = NULL;
 
 	if (dfc->mctx_srtail != NULL)
 		dfc->mctx_srtail->srq_next = new;
@@ -5370,18 +5481,14 @@ dkimf_add_signrequest(struct msgctx *dfc, DKIMF_DB keytable, const char *keyname
 
 	return 0;
 
-#if !defined(SINGLE_SIGNING)
-relsel:
-	free(new->srq_selector);
-reldom:
-	free(new->srq_domain);
-relsig:
-	if (new->srq_signer != NULL)
-		free(new->srq_signer);
-	free(new);
-
-	return -1;
-#endif /* !SINGLE_SIGNING */
+#undef domain_INDEX
+#undef selector_INDEX
+#undef hashalg_or_keydata_INDEX
+#undef keydata_or_nothing_INDEX
+#undef BBB
+#undef LLL
+#undef FFF
+#undef SSS
 }
 
 /*
@@ -6143,8 +6250,8 @@ dkimf_config_new(void)
 		return NULL;
 
 	memset(new, '\0', sizeof(struct dkimf_config));
-	new->conf_hdrcanon = DKIM_CANON_DEFAULT;
-	new->conf_bodycanon = DKIM_CANON_DEFAULT;
+	new->conf_hdrcanon = DKIM_CANON_ARG_DEFAULT;
+	new->conf_bodycanon = DKIM_CANON_ARG_DEFAULT;
 	new->conf_dnstimeout = DEFTIMEOUT;
 	new->conf_maxverify = DEFMAXVERIFY;
 	new->conf_maxhdrsz = DEFMAXHDRSZ;
@@ -6789,12 +6896,14 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		                  sizeof conf->conf_reportaddrbcc);
 #endif /* DEBUG_FEATURES */
 
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 		if (conf->conf_signalgstr == NULL)
 		{
 			(void) config_get(data, "SignatureAlgorithm",
 			                  &conf->conf_signalgstr,
 			                  sizeof conf->conf_signalgstr);
 		}
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 
 		tmpint = 0;
 		(void) config_get(data, "SignatureTTL", &tmpint,
@@ -8119,6 +8228,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 	}
 #endif /* LOCAL_SIGNING_CRITERIA */
 
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	if (conf->conf_signalgstr != NULL)
 	{
 		conf->conf_signalg = dkimf_lookup_strtoint(conf->conf_signalgstr,
@@ -8135,6 +8245,7 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 	{
 		conf->conf_signalg = DKIM_SIGN_DEFAULT;
 	}
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 
 	if (conf->conf_canonstr != NULL)
 	{
@@ -8143,9 +8254,10 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		p = strchr(conf->conf_canonstr, '/');
 		if (p == NULL)
 		{
-			conf->conf_hdrcanon = dkimf_lookup_strtoint(conf->conf_canonstr,
-			                                            dkimf_canon);
-			if (conf->conf_hdrcanon == -1)
+			int hcc;
+
+			hcc = dkim_name_to_code(dkim_canon, conf->conf_canonstr);
+			if (hcc == -1)
 			{
 				snprintf(err, errlen,
 				         "unknown canonicalization algorithm \"%s\"",
@@ -8153,15 +8265,17 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 				return -1;
 			}
 
-			conf->conf_bodycanon = DKIM_CANON_DEFAULT;
+			conf->conf_hdrcanon = (dkim_canon_arg_t) hcc;
+			conf->conf_bodycanon = DKIM_CANON_ARG_DEFAULT;
 		}
 		else
 		{
+			int cc;
+
 			*p = '\0';
 
-			conf->conf_hdrcanon = dkimf_lookup_strtoint(conf->conf_canonstr,
-			                                            dkimf_canon);
-			if (conf->conf_hdrcanon == -1)
+			cc = dkim_name_to_code(dkim_canon, conf->conf_canonstr);
+			if (cc == -1)
 			{
 				snprintf(err, errlen,
 				         "unknown canonicalization algorithm \"%s\"",
@@ -8169,15 +8283,18 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 				return -1;
 			}
 
-			conf->conf_bodycanon = dkimf_lookup_strtoint(p + 1,
-			                                             dkimf_canon);
-			if (conf->conf_bodycanon == -1)
+			conf->conf_hdrcanon = (dkim_canon_arg_t) cc;
+
+			cc = dkim_name_to_code(dkim_canon, p + 1);
+			if (cc == -1)
 			{
 				snprintf(err, errlen,
 				         "unknown canonicalization algorithm \"%s\"",
 				         p + 1);
 				return -1;
 			}
+
+			conf->conf_bodycanon = (dkim_canon_arg_t) cc;
 
 			*p = '/';
 		}
@@ -9629,7 +9746,9 @@ dkimf_initcontext(struct dkimf_config *conf)
 	ctx->mctx_status = DKIMF_STATUS_UNKNOWN;
 	ctx->mctx_hdrcanon = conf->conf_hdrcanon;
 	ctx->mctx_bodycanon = conf->conf_bodycanon;
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	ctx->mctx_signalg = DKIM_SIGN_UNKNOWN;
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 	ctx->mctx_queryalg = DKIM_QUERY_UNKNOWN;
 #ifdef USE_UNBOUND
 	ctx->mctx_dnssec_key = DKIM_DNSSEC_UNKNOWN;
@@ -9773,10 +9892,6 @@ dkimf_cleanup(SMFICTX *ctx)
 
 				if (sr->srq_dkim != NULL)
 					dkim_free(sr->srq_dkim);
-				TRYFREE(sr->srq_keydata);
-				TRYFREE(sr->srq_domain);
-				TRYFREE(sr->srq_selector);
-				TRYFREE(sr->srq_signer);
 				TRYFREE(sr);
 
 				sr = next;
@@ -11488,7 +11603,11 @@ dkimf_check_conditional(struct msgctx *dfc, struct dkimf_config *conf,
 			                            sdomain,
 			                            dfc->mctx_hdrcanon,
 			                            dfc->mctx_bodycanon,
+#if defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
+			                            sr->srq_hashalg,
+#else /* CB8_AUTOMATIC_SIGNALG_SELECTION */
 			                            dfc->mctx_signalg,
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 			                            0, &status);
 			if (status != DKIM_STAT_OK)
 			{
@@ -12384,7 +12503,7 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 
 	if (strcasecmp(headerf, conf->conf_selectcanonhdr) == 0)
 	{
-		int c;
+		int cc;
 		char *slash;
 
 		slash = strchr(headerv, '/');
@@ -12392,20 +12511,20 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 		{
 			*slash = '\0';
 
-			c = dkimf_lookup_strtoint(headerv, dkimf_canon);
-			if (c != -1)
-				dfc->mctx_hdrcanon = (dkim_canon_t) c;
-			c = dkimf_lookup_strtoint(slash + 1, dkimf_canon);
-			if (c != -1)
-				dfc->mctx_bodycanon = (dkim_canon_t) c;
+			cc = dkim_name_to_code(dkim_canon, headerv);
+			if (cc != -1)
+				dfc->mctx_hdrcanon = (dkim_canon_arg_t) cc;
+			cc = dkim_name_to_code(dkim_canon, slash + 1);
+			if (cc != -1)
+				dfc->mctx_bodycanon = (dkim_canon_arg_t) cc;
 
 			*slash = '/';
 		}
 		else
 		{
-			c = dkimf_lookup_strtoint(headerv, dkimf_canon);
-			if (c != -1)
-				dfc->mctx_hdrcanon = (dkim_canon_t) c;
+			cc = dkim_name_to_code(dkim_canon, headerv);
+			if (cc != -1)
+				dfc->mctx_hdrcanon = (dkim_canon_arg_t) cc;
 		}
 
 		/* XXX -- eat this header? */
@@ -12792,7 +12911,9 @@ mlfi_eoh(SMFICTX *ctx)
 			}
 
 			dfc->mctx_resign = TRUE;
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 			dfc->mctx_signalg = conf->conf_signalg;
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 		}
 	}
 #endif /* _FFR_RESIGN */
@@ -13086,7 +13207,9 @@ mlfi_eoh(SMFICTX *ctx)
 		else if (found > 0)
 		{
 			domainok = TRUE;
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 			dfc->mctx_signalg = conf->conf_signalg;
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 		}
 
 		if (!domainok && conf->conf_logwhy)
@@ -13199,7 +13322,9 @@ mlfi_eoh(SMFICTX *ctx)
 			return SMFIS_TEMPFAIL;
 		}
 
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 		dfc->mctx_signalg = conf->conf_signalg;
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 	}
 #endif /* SINGLE_SIGNING */
 
@@ -13527,7 +13652,11 @@ mlfi_eoh(SMFICTX *ctx)
 			                         sdomain,
 			                         dfc->mctx_hdrcanon,
 			                         dfc->mctx_bodycanon,
+#if defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
+			                         sr->srq_hashalg,
+#else /* CB8_AUTOMATIC_SIGNALG_SELECTION */
 			                         dfc->mctx_signalg,
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 			                         signlen, &status);
 
 			if (sr->srq_dkim == NULL || status != DKIM_STAT_OK)
@@ -16323,7 +16452,9 @@ usage(void)
 #if defined(SINGLE_SIGNING)
 	                "\t-s selector \tselector to use when signing\n"
 #endif /* SINGLE_SIGNING */
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	                "\t-S signalg  \tsignature algorithm to use when signing\n"
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 #if defined(PRODUCTION_TESTS)
 			"\t-t testfile \tevaluate RFC5322 message in \"testfile\"\n"
 #endif /* PRODUCTION_TESTS */
@@ -16593,11 +16724,13 @@ main(int argc, char **argv)
 			break;
 #endif /* SINGLE_SIGNING */
 
+#if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 		  case 'S':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
 			curconf->conf_signalgstr = optarg;
 			break;
+#endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
 
 #if defined(PRODUCTION_TESTS)
 		  case 't':
@@ -16672,19 +16805,25 @@ main(int argc, char **argv)
 			       mvmajor, mvminor, mvrelease);
 #endif /* HAVE_SMFI_VERSION */
 			printf("\tSupported signing algorithms:\n");
-			for (c = 0; dkimf_sign[c].str != NULL; c++)
+			for (c = 0; dkim_sign_alg[c].tbl_name != NULL; c++)
 			{
-				if ((dkimf_sign[c].code == DKIM_SIGN_RSASHA256 ||
-				     dkimf_sign[c].code == DKIM_SIGN_ED25519SHA256) &&
-	    			    !dkim_libfeature(curconf->conf_libopendkim,
-				                     DKIM_FEATURE_SHA256))
+				if (dkim_sign_alg[c].tbl_code == DKIM_SIGN_RSASHA256 &&
+        			    !dkim_libfeature(curconf->conf_libopendkim,
+        			                     DKIM_FEATURE_SHA256))
+        				continue;
+        
+        			if (dkim_sign_alg[c].tbl_code == DKIM_SIGN_ED25519SHA256 &&
+				    (!dkim_libfeature(curconf->conf_libopendkim,
+				                      DKIM_FEATURE_ED25519) ||
+				     !dkim_libfeature(curconf->conf_libopendkim,
+				                      DKIM_FEATURE_SHA256)))
 					continue;
 
-				printf("\t\t%s\n", dkimf_sign[c].str);
+				printf("\t\t%s\n", dkim_sign_alg[c].tbl_name);
 			}
 			printf("\tSupported canonicalization algorithms:\n");
-			for (c = 0; dkimf_canon[c].str != NULL; c++)
-				printf("\t\t%s\n", dkimf_canon[c].str);
+			for (c = 0; dkim_canon[c].tbl_name != NULL; c++)
+				printf("\t\t%s\n", dkim_canon[c].tbl_name);
 			dkimf_optlist(stdout);
 			return EX_OK;
 

@@ -91,7 +91,12 @@ Denote end-of-headers for a message.
 @STRICT_HEADERS_DOCENDIF@
 <li>This function can return <tt>DKIM_STAT_NORESOURCE</tt> for a verifying
     handle if an attempt to construct a DNS query based on the selector and
-    domain in a signature exceeded the maximum allowable query size.
+    domain in a signature exceeded the maximum allowable query size, or
+    if the signing key could not be loaded when signing.
+<li>This function can return <tt>DKIM_STAT_SIGGEN</tt> when signing
+    if either the signing key was not of type Ed25519 or RSA,
+    or the combination of <i>crypt-alg</i> and <i>hash-alg</i>
+    was invalid.
 </ul>
 </td>
 </tr>

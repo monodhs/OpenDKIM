@@ -19,9 +19,9 @@ include(DOCGEN_MACROS)dnl
 	const unsigned char *secretkey,
 	const unsigned char *selector,
 	const unsigned char *domain,
-	<a href="dkim_canon_t.html"><tt>dkim_canon_t</tt></a> hdrcanon_alg,
-	<a href="dkim_canon_t.html"><tt>dkim_canon_t</tt></a> bodycanon_alg,
-	<a href="dkim_alg_t.html"><tt>dkim_alg_t</tt></a> sign_alg,
+	<a href="dkim_canon_t.html"><tt>dkim_canon_arg_t</tt></a> hdrcanon_alg,
+	<a href="dkim_canon_t.html"><tt>dkim_canon_arg_t</tt></a> bodycanon_alg,
+	<a href="dkim_hashalg_t.html"><tt>dkim_hashalg_arg_t</tt></a> hash_alg,
 	ssize_t length
 	<a href="dkim_stat.html"><tt>DKIM_STAT</tt></a> *statp
 );
@@ -97,9 +97,20 @@ Create a new handle for signing a message.
 	<td>The canonicalization algorithm to use when preparing the body
 	of this message for signing.
 	</td></tr>
-    <tr valign="top"><td>sign_alg</td>
-	<td>The signing algorithm to use when generating the signature
-        to be attached to this message.
+    <tr valign="top"><td>hash_alg</td>
+	<td>The hash algorithm to use when generating the signature
+	to be attached to this message.  Specify <tt>DKIM_HASHALG_ARG_DEFAULT</tt>
+	to have the hash algorithm inferred from the type of the key material
+	provided in <tt>secretkey</tt>.  For Ed25519 keys, only SHA-256 is defined,
+	and for RSA keys, a default of SHA-256 is assumed; RSA keys <b>must</b>
+	identify with <tt>rsaEncryption</tt> as their ASN.1 object identifier
+	in order to be considered valid.  Invalid combinations of <i>crypt-alg</i>
+	and <i>hash-alg</i> will lead to being rejected in
+	<a href="dkim_eoh.html"><tt>dkim_eoh()</tt></a>
+@RESIGN_DOCIF@
+	or <a href="dkim_resign.html"><tt>dkim_resign()</tt></a>
+@RESIGN_DOCENDIF@
+	with a <tt>DKIM_STAT_SIGGEN</tt> status code.
 	</td></tr>
     <tr valign="top"><td>length</td>
 	<td>The number of bytes of the body to sign.  A value of -1

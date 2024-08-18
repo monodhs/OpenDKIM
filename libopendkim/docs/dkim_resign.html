@@ -74,6 +74,14 @@ signature, or multiple signatures.
     <tr valign="top"><td><tt>DKIM_STAT_OK</tt></td>
 	<td>The binding was successful.
 	</td></tr>
+    <tr valign="top"><td><tt>DKIM_STAT_SIGGEN</tt></td>
+	<td>Either the signing key was not of type Ed25519 or RSA,
+	or the combination of <i>crypt-alg</i> and <i>hash-alg</i>
+	was invalid.
+	</td></tr>
+    <tr valign="top"><td><tt>DKIM_STAT_NORESOURCE</tt></td>
+	<td>The available memory was exhausted.
+	</td></tr>
     <tr valign="top"><td><tt>DKIM_STAT_INVALID</tt></td>
 	One or more of the following:
 	<ul>

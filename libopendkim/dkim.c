@@ -177,47 +177,12 @@ void dkim_error __P((DKIM *, const char *, ...));
 				(x) = NULL; \
 			}
 
-#ifdef USE_GNUTLS
-# define KEY_CLOBBER(x)	if ((x) != NULL) \
-			{ \
-				gnutls_x509_privkey_deinit((x)); \
-				(x) = NULL; \
-			}
-
-# define PUBKEY_CLOBBER(x)	if ((x) != NULL) \
-			{ \
-				gnutls_pubkey_deinit((x)); \
-				(x) = NULL; \
-			}
-
-# define PRIVKEY_CLOBBER(x)	if ((x) != NULL) \
-			{ \
-				gnutls_privkey_deinit((x)); \
-				(x) = NULL; \
-			}
-
-#else /* USE_GNUTLS */
-# define BIO_CLOBBER(x)	if ((x) != NULL) \
-			{ \
-				BIO_free((x)); \
-				(x) = NULL; \
-			}
-
-# define RSA_CLOBBER(x)	if ((x) != NULL) \
-			{ \
-				RSA_free((x)); \
-				(x) = NULL; \
-			}
-
-# define EVP_CLOBBER(x)	if ((x) != NULL) \
-			{ \
-				EVP_PKEY_free((x)); \
-				(x) = NULL; \
-			}
-#endif /* ! USE_GNUTLS */
-
 /* macros */
 #define DKIM_ISLWSP(x)  ((x) == 011 || (x) == 013 || (x) == 014 || (x) == 040)
+
+const dkim_hashalg_arg_t DKIM_HASHALG_ARG_SHA1    = { DKIM_CL_DA_SHA1    };
+const dkim_hashalg_arg_t DKIM_HASHALG_ARG_SHA256  = { DKIM_CL_DA_SHA256  };
+const dkim_hashalg_arg_t DKIM_HASHALG_ARG_DEFAULT = { DKIM_CL_DA_DEFAULT };
 
 /* recommended list of headers to sign, from RFC6376 Section 5.4 */
 const u_char * const dkim_should_signhdrs[] =
@@ -515,7 +480,7 @@ dkim_process_set(DKIM *dkim, dkim_set_t type, u_char *str, size_t len,
 	if (hcopy == NULL)
 	{
 		dkim_error(dkim, "unable to allocate %d byte(s)", len + 1);
-		return DKIM_STAT_INTERNAL;
+		return DKIM_STAT_NORESOURCE;
 	}
 	strlcpy((char *) hcopy, (char *) str, len + 1);
 
@@ -525,7 +490,7 @@ dkim_process_set(DKIM *dkim, dkim_set_t type, u_char *str, size_t len,
 		DKIM_FREE(dkim, hcopy);
 		dkim_error(dkim, "unable to allocate %d byte(s)",
 		           sizeof(DKIM_SET));
-		return DKIM_STAT_INTERNAL;
+		return DKIM_STAT_NORESOURCE;
 	}
 
 	set->set_type = type;
@@ -1141,175 +1106,448 @@ dkim_sig_load_ssl_errors(DKIM *dkim, DKIM_SIGINFO *sig, int status)
 }
 
 /*
-**  DKIM_PRIVKEY_LOAD -- attempt to load a private key for later use
+**  DKIM_PRIVKEY_LOAD -- attempt to load and identify a private key
 **
 **  Parameters:
 **  	dkim -- DKIM handle
+**  	pki -- public key algorithm information object to fill in
+**  	pkm -- null-ified key material object to fill in
 **
 **  Return value:
-**  	A DKIM_STAT_* constant.
+**  	Either DKIM_STAT_NORESOURCE for allocation failures
+**  	or DKIM_STAT_SIGGEN for invalid type of key provided.
 */
 
+static
 DKIM_STAT
-dkim_privkey_load(DKIM *dkim)
+dkim_privkey_load(DKIM *dkim, struct dkim_pki * pki, struct dkim_pkm * pkm)
 {
+	int clrv = -1;
+	const char * emsg = "";
+	DKIM_STAT status = DKIM_STAT_INTERNAL;
 #ifdef USE_GNUTLS
-	int status;
+	gnutls_datum_t xkey;
+	gnutls_x509_crt_fmt_t xfmt;
 #endif /* USE_GNUTLS */
-	struct dkim_crypto *crypto;
+
+#define RR0(t, r)			\
+	clrv = 0;			\
+	emsg = (t);			\
+	status = DKIM_STAT_ ## r
+#define RRS(t, r)			\
+	emsg = (t);			\
+	status = DKIM_STAT_ ## r
 
 	assert(dkim != NULL);
-
-	if (dkim->dkim_mode != DKIM_MODE_SIGN)
-		return DKIM_STAT_INVALID;
-
-	if (dkim->dkim_signalg != DKIM_SIGN_RSASHA1 &&
-	    dkim->dkim_signalg != DKIM_SIGN_RSASHA256 &&
-	    dkim->dkim_signalg != DKIM_SIGN_ED25519SHA256)
-		return DKIM_STAT_INVALID;
-
-	crypto = (struct dkim_crypto *) dkim->dkim_keydata;
-
-	if (crypto == NULL)
-	{
-		crypto = DKIM_MALLOC(dkim, sizeof(struct dkim_crypto));
-		if (crypto == NULL)
-		{
-			dkim_error(dkim, "unable to allocate %d byte(s)",
-			           sizeof(struct dkim_crypto));
-			return DKIM_STAT_NORESOURCE;
-		}
-		memset(crypto, '\0', sizeof(struct dkim_crypto));
-	}
-
-	dkim->dkim_keydata = crypto;
+	assert(pki != NULL);
+	assert(pkm != NULL);
 
 #ifdef USE_GNUTLS
-	crypto->crypto_keydata.data = dkim->dkim_key;
-	crypto->crypto_keydata.size = dkim->dkim_keylen;
+	xkey.data = dkim->dkim_key;
+	xkey.size = dkim->dkim_keylen;
 #else /* USE_GNUTLS */
-	if (crypto->crypto_keydata == NULL)
+	pkm->pkm_bio = BIO_new_mem_buf(dkim->dkim_key, dkim->dkim_keylen);
+	if (pkm->pkm_bio == NULL)
 	{
-		crypto->crypto_keydata = BIO_new_mem_buf(dkim->dkim_key,
-		                                         dkim->dkim_keylen);
-		if (crypto->crypto_keydata == NULL)
-		{
-			dkim_error(dkim, "BIO_new_mem_buf() failed");
-			return DKIM_STAT_NORESOURCE;
-		}
+		RR0("BIO_new_mem_buf() failed", NORESOURCE);
+		goto error_out;
 	}
-#endif /* USE_GNUTLS */
+#endif /* !USE_GNUTLS */
 
-#ifdef USE_GNUTLS 
-	status = gnutls_x509_privkey_init(&crypto->crypto_key);
-	if (status != GNUTLS_E_SUCCESS)
+#if defined(USE_GNUTLS)
+
+	clrv = gnutls_x509_privkey_init(&pkm->pkm_xpriv);
+	if (clrv != GNUTLS_E_SUCCESS)
 	{
-		dkim_load_ssl_errors(dkim, status);
-		dkim_error(dkim, "gnutls_x509_privkey_init() failed");
-		return DKIM_STAT_NORESOURCE;
+		RRS("gnutls_x509_privkey_init() failed", NORESOURCE);
+		goto error_out;
 	}
 
 	if (strncmp((char *) dkim->dkim_key, "-----", 5) == 0)
-	{						/* PEM */
-		status = gnutls_x509_privkey_import(crypto->crypto_key,
-		                                    &crypto->crypto_keydata,
-	                                            GNUTLS_X509_FMT_PEM);
-	}
+		xfmt = GNUTLS_X509_FMT_PEM;
 	else
+		xfmt = GNUTLS_X509_FMT_DER;
+
+	clrv = gnutls_x509_privkey_import(pkm->pkm_xpriv, &xkey, xfmt);
+	if (clrv != GNUTLS_E_SUCCESS)
 	{
-		status = gnutls_x509_privkey_import(crypto->crypto_key,
-		                                    &crypto->crypto_keydata,
-	                                            GNUTLS_X509_FMT_DER);
+		RRS("gnutls_x509_privkey_import() failed", NORESOURCE);
+		goto error_out;
 	}
 
-	if (status != GNUTLS_E_SUCCESS)
+	clrv = gnutls_privkey_init(&pkm->pkm_priv);
+	if (clrv != GNUTLS_E_SUCCESS)
 	{
-		dkim_load_ssl_errors(dkim, status);
-		dkim_error(dkim, "gnutls_x509_privkey_import() failed");
-		return DKIM_STAT_NORESOURCE;
+		RRS("gnutls_privkey_init() failed", NORESOURCE);
+		goto error_out;
 	}
 
-	status = gnutls_privkey_init(&crypto->crypto_privkey);
-	if (status != GNUTLS_E_SUCCESS)
+	clrv = gnutls_privkey_import_x509(pkm->pkm_priv, pkm->pkm_xpriv, 0);
+	if (clrv != GNUTLS_E_SUCCESS)
 	{
-		dkim_load_ssl_errors(dkim, status);
-		dkim_error(dkim, "gnutls_privkey_init() failed");
-		return DKIM_STAT_NORESOURCE;
+		RRS("gnutls_privkey_import_x509() failed", NORESOURCE);
+		goto error_out;
 	}
 
-	status = gnutls_privkey_import_x509(crypto->crypto_privkey,
-	                                    crypto->crypto_key, 0);
-	if (status != GNUTLS_E_SUCCESS)
+	pki->pki_id = gnutls_privkey_get_pk_algorithm(pkm->pkm_priv,
+	                                              &pki->pki_keysize);
+	switch (pki->pki_id)
 	{
-		dkim_load_ssl_errors(dkim, status);
-		dkim_error(dkim, "gnutls_privkey_import_x509() failed");
-		(void) gnutls_privkey_deinit(crypto->crypto_privkey);
-		return DKIM_STAT_NORESOURCE;
-	}
+#if DKIM_LIBFEATURE(ED25519)
+	  case DKIM_KEYTYPE_ED25519:
+		pki->pki_sigsize = (2 * pki->pki_keysize) / 8;
+		break;
+#endif /* ED25519 */
 
-	(void) gnutls_privkey_get_pk_algorithm(crypto->crypto_privkey,
-	                                       &crypto->crypto_keysize);
+	  case DKIM_KEYTYPE_RSA:
+		pki->pki_sigsize = pki->pki_keysize / 8;
+		break;
+
+	  default:
+		RR0("private key not of type Ed25519 or RSA", SIGGEN);
+		goto error_out;
+	}
 
 #else /* USE_GNUTLS */
 
 	if (strncmp((char *) dkim->dkim_key, "-----", 5) == 0)
 	{						/* PEM */
-		crypto->crypto_pkey = PEM_read_bio_PrivateKey(crypto->crypto_keydata,
-		                                              NULL, NULL,
-		                                              NULL);
-
-		if (crypto->crypto_pkey == NULL)
+		pkm->pkm_pkey = PEM_read_bio_PrivateKey(pkm->pkm_bio,
+		                                        NULL, NULL, NULL);
+		if (pkm->pkm_pkey == NULL)
 		{
-			dkim_load_ssl_errors(dkim, 0);
-			dkim_error(dkim, "PEM_read_bio_PrivateKey() failed");
-			BIO_CLOBBER(crypto->crypto_keydata);
-			return DKIM_STAT_NORESOURCE;
+			RR0("PEM_read_bio_PrivateKey() failed", NORESOURCE);
+			goto error_out;
 		}
 	}
 	else
 	{						/* DER */
-		crypto->crypto_pkey = d2i_PrivateKey_bio(crypto->crypto_keydata,
-		                                         NULL);
-
-		if (crypto->crypto_pkey == NULL)
+		pkm->pkm_pkey = d2i_PrivateKey_bio(pkm->pkm_bio, NULL);
+		if (pkm->pkm_pkey == NULL)
 		{
-			dkim_load_ssl_errors(dkim, 0);
-			dkim_error(dkim, "d2i_PrivateKey_bio() failed");
-			BIO_CLOBBER(crypto->crypto_keydata);
-			return DKIM_STAT_NORESOURCE;
+			RR0("d2i_PrivateKey_bio() failed", NORESOURCE);
+			goto error_out;
 		}
 	}
 
-	if (dkim->dkim_signalg == DKIM_SIGN_ED25519SHA256)
+	pki->pki_id = EVP_PKEY_id(pkm->pkm_pkey);
+	switch (pki->pki_id)
 	{
-		crypto->crypto_keysize = EVP_PKEY_size(crypto->crypto_pkey) * 8;
+#if DKIM_LIBFEATURE(ED25519)
+	  case DKIM_KEYTYPE_ED25519:
+
+		pki->pki_keysize = EVP_PKEY_bits(pkm->pkm_pkey);
+		pki->pki_sigsize = EVP_PKEY_size(pkm->pkm_pkey);
+
+		break;
+#endif /* ED25519 */
+
+	  case DKIM_KEYTYPE_RSA:
+
+		pkm->pkm_rsa = EVP_PKEY_get1_RSA(pkm->pkm_pkey);
+		if (pkm->pkm_rsa == NULL)
+		{
+			RR0("EVP_PKEY_get1_RSA() failed", NORESOURCE);
+			goto error_out;
+		}
+
+		pki->pki_sigsize = RSA_size(pkm->pkm_rsa);
+		pki->pki_keysize = pki->pki_sigsize * 8;
+
+		break;
+
+	  default:
+		RR0("private key not of type Ed25519 or RSA", SIGGEN);
+		goto error_out;
+	}
+
+#endif /* !USE_GNUTLS */
+
+	return DKIM_STAT_OK;
+
+error_out:
+
+	dkim_load_ssl_errors(dkim, clrv);
+	dkim_error(dkim, emsg);
+
+	return status;
+#undef RR0
+#undef RRS
+}
+
+/*
+**  DKIM_PUBKEY_LOAD -- attempt to load and identify a public key
+**
+**  Parameters:
+**  	dkim -- DKIM handle
+**  	sig -- signature object for which to load the public key material
+**  	pkm -- null-ified key material object to fill in
+**
+**  Return value:
+**  	None; sets sig->sig_error to DKIM_SIGERROR_KEYDECODE
+**  	upon failure instead.
+*/
+
+static
+void
+dkim_pubkey_load(DKIM * dkim, struct dkim_siginfo * sig, struct dkim_pkm * pkm)
+{
+	int clrv = -1;
+	const char * emsg = "";
+	struct dkim_pki * pki = &sig->sig_pki;
+#if defined(USE_GNUTLS)
+	gnutls_datum_t xkey;
+	gnutls_pk_algorithm_t pkalg;
+#endif /* USE_GNUTLS */
+
+#define RR0(t)		\
+	clrv = 0;	\
+	emsg = (t)
+
+	assert(dkim != NULL);
+	assert(sig != NULL);
+	assert(pkm != NULL);
+
+#if defined(USE_GNUTLS)
+	xkey.data = sig->sig_key;
+	xkey.size = sig->sig_keylen;
+#else /* USE_GNUTLS */
+	pkm->pkm_bio = BIO_new_mem_buf(sig->sig_key, sig->sig_keylen);
+	if (pkm->pkm_bio == NULL)
+	{
+		RR0("BIO_new_mem_buf() failed");
+		goto error_out;
+	}
+#endif /* !USE_GNUTLS */
+
+#if defined(USE_GNUTLS)
+
+	clrv = gnutls_pubkey_init(&pkm->pkm_pub);
+	if (clrv != GNUTLS_E_SUCCESS)
+	{
+		emsg = "gnutls_pubkey_init() failed";
+		goto error_out;
+	}
+
+	clrv = gnutls_pubkey_import(pkm->pkm_pub, &xkey, GNUTLS_X509_FMT_DER);
+	if (clrv != GNUTLS_E_SUCCESS)
+	{
+		emsg = "gnutls_pubkey_import() failed";
+		goto pub_out;
+	}
+
+	pkalg = gnutls_pubkey_get_pk_algorithm(pkm->pkm_pub, &pki->pki_keysize);
+	switch (pki->pki_id)
+	{
+#if DKIM_LIBFEATURE(ED25519)
+	  case DKIM_KEYTYPE_ED25519:
+
+		if (pkalg != dkim_cl_pka(DKIM_KEYTYPE_ED25519))
+		{
+			RR0("not an Ed25519 key");
+			goto pub_out;
+		}
+
+		pki->pki_sigsize = (2 * pki->pki_keysize) / 8;
+
+		break;
+#endif /* ED25519 */
+
+	  case DKIM_KEYTYPE_RSA:
+
+		if (pkalg != dkim_cl_pka(DKIM_KEYTYPE_RSA))
+		{
+			RR0("not an RSA key");
+			goto pub_out;
+		}
+
+		pki->pki_sigsize = pki->pki_keysize / 8;
+
+		break;
+
+	  default:
+		assert(0);
+	}
+
+#else /* USE_GNUTLS */
+
+	switch (pki->pki_id)
+	{
+#if DKIM_LIBFEATURE(ED25519)
+	  case DKIM_KEYTYPE_ED25519:
+	  {
+		u_char * keydata;
+		size_t keylen;
+
+		keylen = BIO_get_mem_data(pkm->pkm_bio, &keydata);
+		pkm->pkm_pkey = EVP_PKEY_new_raw_public_key(DKIM_KEYTYPE_ED25519,
+		                                            NULL, keydata,
+		                                            keylen);
+		if (pkm->pkm_pkey == NULL)
+		{
+			RR0("EVP_PKEY_new_raw_public_key() failed");
+			goto bio_out;
+		}
+
+		if (EVP_PKEY_id(pkm->pkm_pkey) != DKIM_KEYTYPE_ED25519)
+		{
+			RR0("not an Ed25519 key");
+			goto pkey_out;
+		}
+
+		pki->pki_keysize = EVP_PKEY_bits(pkm->pkm_pkey);
+		pki->pki_sigsize = EVP_PKEY_size(pkm->pkm_pkey);
+
+		break;
+	  }
+# endif /* ED25519 */
+
+	  case DKIM_KEYTYPE_RSA:
+
+		pkm->pkm_pkey = d2i_PUBKEY_bio(pkm->pkm_bio, NULL);
+		if (pkm->pkm_pkey == NULL)
+		{
+			RR0("d2i_PUBKEY_bio() failed");
+			goto bio_out;
+		}
+
+		pkm->pkm_rsa = EVP_PKEY_get1_RSA(pkm->pkm_pkey);
+		if (pkm->pkm_rsa == NULL)
+		{
+			RR0("EVP_PKEY_get1_RSA() failed");
+			goto pkey_out;
+		}
+
+		pki->pki_sigsize = RSA_size(pkm->pkm_rsa);
+		pki->pki_keysize = pki->pki_sigsize * 8;
+
+		break;
+
+	  default:
+		assert(0);
+	}
+
+#endif /* !USE_GNUTLS */
+
+	return;
+
+#if defined(USE_GNUTLS)
+
+pub_out:
+	gnutls_pubkey_deinit(pkm->pkm_pub);
+
+#else /* USE_GNUTLS */
+
+pkey_out:
+	EVP_PKEY_free(pkm->pkm_pkey);
+bio_out:
+	BIO_free(pkm->pkm_bio);
+
+#endif /* !USE_GNUTLS */
+
+error_out:
+
+	dkim_sig_load_ssl_errors(dkim, sig, clrv);
+	dkim_error(dkim,
+	           "s=%s d=%s: %s",
+	           dkim_sig_getselector(sig),
+	           dkim_sig_getdomain(sig),
+	           emsg);
+
+	sig->sig_error = DKIM_SIGERROR_KEYDECODE;
+#undef RR0
+}
+
+/*
+**  DKIM_PRIVKEY_FREE -- release all resources associated with a key
+**
+**  Parameters:
+**  	pkm -- key material object previously filled in by dkim_privkey_load()
+**
+**  Return value:
+**  	None.
+*/
+
+static
+void
+dkim_privkey_free(struct dkim_pkm * pkm)
+{
+#if defined(USE_GNUTLS)
+
+	if (pkm->pkm_priv != NULL)
+		gnutls_privkey_deinit(pkm->pkm_priv);
+
+	if (pkm->pkm_xpriv != NULL)
+		gnutls_x509_privkey_deinit(pkm->pkm_xpriv);
+
+#else /* USE_GNUTLS */
+
+	/* DKIM_KEYTYPE_RSA only */
+	if (pkm->pkm_rsa != NULL)
+		RSA_free(pkm->pkm_rsa);
+
+	if (pkm->pkm_pkey != NULL)
+		EVP_PKEY_free(pkm->pkm_pkey);
+
+	if (pkm->pkm_bio != NULL)
+		BIO_free(pkm->pkm_bio);
+
+#endif /* !USE_GNUTLS */
+}
+
+static
+DKIM_STAT
+dkim_privkey_hashalg(DKIM * dkim, struct dkim_siginfo * sig)
+{
+	DKIM_STAT status;
+	struct dkim_pki * pki = &sig->sig_pki;
+	struct dkim_pkm * pkm = &sig->sig_pkm;
+
+	if ((status = dkim_privkey_load(dkim, pki, pkm)) != DKIM_STAT_OK)
+		return status;
+
+	sig->sig_flags |= DKIM_SIGFLAG_KEYLOADED;
+
+	if (pki->pki_id == DKIM_KEYTYPE_RSA &&
+	    pki->pki_keysize < dkim->dkim_libhandle->dkiml_minkeybits)
+	{
+		dkim_error(dkim,
+		           "private key too small (%d bits, need at least %d)",
+		           pki->pki_keysize,
+		           dkim->dkim_libhandle->dkiml_minkeybits);
+		return DKIM_STAT_SIGGEN;
+	}
+
+	/* determine hash type */
+#if DKIM_LIBFEATURE(SHA256)
+	if ((pki->pki_id == DKIM_KEYTYPE_RSA ||
+	     pki->pki_id == DKIM_KEYTYPE_ED25519) &&
+	    (dkim->dkim_hashalg.i == DKIM_HASHALG_ARG_SHA256.i ||
+	     dkim->dkim_hashalg.i == DKIM_HASHALG_ARG_DEFAULT.i))
+	{
+		sig->sig_hashalg = DKIM_HASHALG_SHA256;
+		sig->sig_signalg = pki->pki_id == DKIM_KEYTYPE_ED25519 ?
+		                   DKIM_SIGN_ED25519SHA256 :
+		                   DKIM_SIGN_RSASHA256;
+	}
+#else /* SHA256 */
+	if (FALSE);
+#endif /* !SHA256 */
+	else if (pki->pki_id == DKIM_KEYTYPE_RSA &&
+	         dkim->dkim_hashalg.i == DKIM_HASHALG_ARG_SHA1.i)
+	{
+		sig->sig_hashalg = DKIM_HASHALG_SHA1;
+		sig->sig_signalg = DKIM_SIGN_RSASHA1;
 	}
 	else
 	{
-		crypto->crypto_key = EVP_PKEY_get1_RSA(crypto->crypto_pkey);
-		if (crypto->crypto_key == NULL)
-		{
-			dkim_load_ssl_errors(dkim, 0);
-			dkim_error(dkim, "EVP_PKEY_get1_RSA() failed");
-			BIO_CLOBBER(crypto->crypto_keydata);
-			return DKIM_STAT_NORESOURCE;
-		}
-
-		crypto->crypto_keysize = RSA_size(crypto->crypto_key) * 8;
-		crypto->crypto_pad = RSA_PKCS1_PADDING;
+		dkim_error(dkim,
+		           "invalid combination of "
+		           "crypt-alg '%s' and hash-alg '%s'",
+		           dkim_code_to_name(dkim_key_type, pki->pki_id),
+		           dkim_code_to_name(dkim_hash_alg, dkim->dkim_hashalg.i));
+		return DKIM_STAT_SIGGEN;
 	}
-
-	crypto->crypto_outlen = crypto->crypto_keysize / 8;
-	crypto->crypto_out = DKIM_MALLOC(dkim, crypto->crypto_outlen);
-	if (crypto->crypto_out == NULL)
-	{
-		dkim_error(dkim, "unable to allocate %d byte(s)",
-		           crypto->crypto_keysize / 8);
-		RSA_free(crypto->crypto_key);
-		BIO_CLOBBER(crypto->crypto_keydata);
-		return DKIM_STAT_NORESOURCE;
-	}
-#endif /* USE_GNUTLS */
 
 	return DKIM_STAT_OK;
 }
@@ -1480,9 +1718,8 @@ dkim_key_smtp(DKIM_SET *set)
 */
 
 static _Bool
-dkim_key_hashok(DKIM_SIGINFO *sig, u_char *hashlist)
+dkim_key_hashok(const DKIM_SIGINFO *sig, u_char *hashlist)
 {
-	int hashalg;
 	u_char *x, *y;
 	u_char tmp[BUFRSZ + 1];
 
@@ -1501,11 +1738,14 @@ dkim_key_hashok(DKIM_SIGINFO *sig, u_char *hashlist)
 		{
 			if (x != NULL)
 			{
+				int hac;
+
 				strlcpy((char *) tmp, (char *) x, sizeof tmp);
 				tmp[y - x] = '\0';
-				hashalg = dkim_name_to_code(hashes,
-				                            (char *) tmp);
-				if (hashalg == sig->sig_hashtype)
+				hac = dkim_name_to_code(dkim_hash_alg,
+				                        (char *) tmp);
+				if (hac != -1 &&
+				    sig->sig_hashalg == (dkim_hashalg_t) hac)
 					return TRUE;
 			}
 
@@ -1555,18 +1795,25 @@ dkim_key_hashesok(u_char *hashlist)
 		{
 			if (x != NULL)
 			{
-				int hashcode;
+				int hac;
 
 				strlcpy((char *) tmp, (char *) x, sizeof tmp);
 				tmp[y - x] = '\0';
 
-				hashcode = dkim_name_to_code(hashes,
+				hac = dkim_name_to_code(dkim_hash_alg,
 				                             (char *) tmp);
-
-				if (hashcode != -1 &&
-				    (hashcode != DKIM_HASHTYPE_SHA256 ||
-				     DKIM_LIBFEATURE(SHA256)))
-					return TRUE;
+				if (hac != -1)
+				{
+					switch ((dkim_hashalg_t) hac)
+					{
+					  case DKIM_HASHALG_SHA1:
+						return TRUE;
+					  case DKIM_HASHALG_SHA256:
+#if DKIM_LIBFEATURE(SHA256)
+						return TRUE;
+#endif /* SHA256 */
+					}
+				}
 			}
 
 			x = NULL;
@@ -1942,7 +2189,6 @@ dkim_siglist_setup(DKIM *dkim)
 {
 	_Bool bsh;
 	int c;
-	int hashtype = DKIM_HASHTYPE_UNKNOWN;
 	int hstatus;
 	size_t b64siglen;
 	size_t len;
@@ -1951,7 +2197,6 @@ dkim_siglist_setup(DKIM *dkim)
 	uint64_t drift;
 	dkim_canon_t bodycanon;
 	dkim_canon_t hdrcanon;
-	dkim_alg_t signalg;
 	DKIM_SET *set;
 	DKIM_LIB *lib;
 	DKIM_CANON *hc;
@@ -1999,6 +2244,8 @@ dkim_siglist_setup(DKIM *dkim)
 	     set != NULL && c < dkim->dkim_sigcount;
 	     set = dkim_set_next(set, DKIM_SETTYPE_SIGNATURE), c++)
 	{
+		struct dkim_siginfo * sig = dkim->dkim_siglist[c];
+
 		/* cope with bad ones */
 		if (set->set_bad && !bsh)
 		{
@@ -2094,6 +2341,7 @@ dkim_siglist_setup(DKIM *dkim)
 		{
 			char *q;
 			char value[BUFRSZ + 1];
+			int hcc;
 
 			strlcpy(value, (char *) param, sizeof value);
 
@@ -2101,12 +2349,14 @@ dkim_siglist_setup(DKIM *dkim)
 			if (q != NULL)
 				*q = '\0';
 
-			hdrcanon = dkim_name_to_code(canonicalizations, value);
-			if (hdrcanon == -1)
+			hcc = dkim_name_to_code(dkim_canon, value);
+			if (hcc == -1)
 			{
 				dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_HC;
 				continue;
 			}
+
+			hdrcanon = (dkim_canon_t) hcc;
 
 			if (q == NULL)
 			{
@@ -2114,14 +2364,16 @@ dkim_siglist_setup(DKIM *dkim)
 			}
 			else
 			{
-				bodycanon = dkim_name_to_code(canonicalizations,
-				                              q + 1);
+				int bcc;
 
-				if (bodycanon == -1)
+				bcc = dkim_name_to_code(dkim_canon, q + 1);
+				if (bcc == -1)
 				{
 					dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_BC;
 					continue;
 				}
+
+				bodycanon = (dkim_canon_t) bcc;
 			}
 		}
 
@@ -2134,24 +2386,28 @@ dkim_siglist_setup(DKIM *dkim)
 		}
 		else
 		{
-			signalg = dkim_name_to_code(algorithms,
-			                            (char *) param);
+			int sac;
 
-			if (signalg == -1)
+			sac = dkim_name_to_code(dkim_sign_alg, (char *) param);
+			if (sac == -1)
 			{
 				dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_A;
 				continue;
 			}
 
-			switch (signalg)
+			sig->sig_signalg = (dkim_signalg_t) sac;
+
+			switch (sig->sig_signalg)
 			{
 			  case DKIM_SIGN_RSASHA1:
-				hashtype = DKIM_HASHTYPE_SHA1;
+				sig->sig_pkalg = DKIM_KEYTYPE_RSA;
+				sig->sig_hashalg = DKIM_HASHALG_SHA1;
 				break;
 
 			  case DKIM_SIGN_RSASHA256:
 #if DKIM_LIBFEATURE(SHA256)
-				hashtype = DKIM_HASHTYPE_SHA256;
+				sig->sig_pkalg = DKIM_KEYTYPE_RSA;
+				sig->sig_hashalg = DKIM_HASHALG_SHA256;
 #else /* SHA256 */
 				dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_A;
 				continue;
@@ -2160,7 +2416,8 @@ dkim_siglist_setup(DKIM *dkim)
 
 			  case DKIM_SIGN_ED25519SHA256:
 #if ( DKIM_LIBFEATURE(ED25519) && DKIM_LIBFEATURE(SHA256) )
-				hashtype = DKIM_HASHTYPE_SHA256;
+				sig->sig_pkalg = DKIM_KEYTYPE_ED25519;
+				sig->sig_hashalg = DKIM_HASHALG_SHA256;
 #else /* ED25519 && SHA256 */
 				dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_INVALID_A;
 				continue;
@@ -2171,9 +2428,6 @@ dkim_siglist_setup(DKIM *dkim)
 				assert(0);
 				/* NOTREACHED */
 			}
-
-			dkim->dkim_siglist[c]->sig_signalg = signalg;
-			dkim->dkim_siglist[c]->sig_hashtype = hashtype;
 		}
 
 		/* determine header list */
@@ -2357,9 +2611,8 @@ dkim_siglist_setup(DKIM *dkim)
 		}
 
 		b64siglen = strlen((char *) param);
-		dkim->dkim_siglist[c]->sig_sig = DKIM_MALLOC(dkim,
-		                                             b64siglen);
-		if (dkim->dkim_siglist[c]->sig_sig == NULL)
+		sig->sig_sig = DKIM_MALLOC(dkim, b64siglen);
+		if (sig->sig_sig == NULL)
 		{
 			dkim_error(dkim,
 			           "unable to allocate %d byte(s)",
@@ -2367,9 +2620,7 @@ dkim_siglist_setup(DKIM *dkim)
 			return DKIM_STAT_NORESOURCE;
 		}
 
-		status = dkim_base64_decode(param,
-		                            dkim->dkim_siglist[c]->sig_sig,
-		                            b64siglen);
+		status = dkim_base64_decode(param, sig->sig_sig, b64siglen);
 		if (status < 0)
 		{
 			dkim->dkim_siglist[c]->sig_error = DKIM_SIGERROR_CORRUPT_B;
@@ -2381,7 +2632,7 @@ dkim_siglist_setup(DKIM *dkim)
 		}
 
 		/* canonicalization handle for the headers */
-		status = dkim_add_canon(dkim, TRUE, hdrcanon, hashtype,
+		status = dkim_add_canon(dkim, TRUE, hdrcanon, sig->sig_hashalg,
 		                        hdrlist, dkim_set_getudata(set),
 		                        0, &hc);
 		if (status != DKIM_STAT_OK)
@@ -2390,9 +2641,8 @@ dkim_siglist_setup(DKIM *dkim)
 		dkim->dkim_siglist[c]->sig_hdrcanonalg = hdrcanon;
 
 		/* canonicalization handle for the body */
-		status = dkim_add_canon(dkim, FALSE, bodycanon,
-		                        hashtype, NULL, NULL, signlen,
-		                        &bc);
+		status = dkim_add_canon(dkim, FALSE, bodycanon, sig->sig_hashalg,
+		                        NULL, NULL, signlen, &bc);
 		if (status != DKIM_STAT_OK)
 			return status;
 		dkim->dkim_siglist[c]->sig_bodycanon = bc;
@@ -2553,12 +2803,12 @@ dkim_gensighdr(DKIM *dkim, DKIM_SIGINFO *sig, struct dkim_dstring *dstr,
 
 	(void) dkim_dstring_printf(dstr, format,
 	                           v, delim,
-	                           dkim_code_to_name(algorithms,
+	                           dkim_code_to_name(dkim_sign_alg,
 	                                             sig->sig_signalg),
 	                           delim,
-	                           dkim_code_to_name(canonicalizations,
+	                           dkim_code_to_name(dkim_canon,
 	                                             sig->sig_hdrcanonalg),
-	                           dkim_code_to_name(canonicalizations,
+	                           dkim_code_to_name(dkim_canon,
 	                                             sig->sig_bodycanonalg),
 	                           delim,
 	                           sig->sig_domain, delim,
@@ -2937,17 +3187,16 @@ dkim_get_key(DKIM *dkim, DKIM_SIGINFO *sig, _Bool test)
 		/* we got a match!  copy the key data (if any)... */
 		if (osig->sig_key != NULL)
 		{
-			sig->sig_key = DKIM_MALLOC(dkim, osig->sig_b64keylen);
+			sig->sig_key = DKIM_MALLOC(dkim, osig->sig_keylen);
 			if (sig->sig_key == NULL)
 			{
 				dkim_error(dkim,
 				           "unable to allocate %d byte(s)",
-				           osig->sig_b64keylen);
+				           osig->sig_keylen);
 				return DKIM_STAT_NORESOURCE;
 			}
 
-			memcpy(sig->sig_key, osig->sig_key,
-			       osig->sig_b64keylen);
+			memcpy(sig->sig_key, osig->sig_key, osig->sig_keylen);
 
 			sig->sig_keylen = osig->sig_keylen;
 
@@ -3100,7 +3349,7 @@ dkim_get_key(DKIM *dkim, DKIM_SIGINFO *sig, _Bool test)
 		sig->sig_error = DKIM_SIGERROR_KEYTYPEMISSING;
 		return DKIM_STAT_SYNTAX;
 	}
-	else if (dkim_name_to_code(keytypes, (char *) p) == -1)
+	else if (dkim_name_to_code(dkim_key_type, (char *) p) == -1)
 	{
 		dkim_error(dkim, "unknown key type '%s'", p);
 		sig->sig_error = DKIM_SIGERROR_KEYTYPEUNKNOWN;
@@ -3109,29 +3358,31 @@ dkim_get_key(DKIM *dkim, DKIM_SIGINFO *sig, _Bool test)
 
 	if (!gotkey)
 	{
+		u_char * b64key;
+		size_t b64keylen;
+
 		/* decode the key */
-		sig->sig_b64key = dkim_param_get(set, (u_char *) "p");
-		if (sig->sig_b64key == NULL)
+		b64key = dkim_param_get(set, (u_char *) "p");
+		if (b64key == NULL)
 		{
 			dkim_error(dkim, "key missing");
 			return DKIM_STAT_SYNTAX;
 		}
-		else if (sig->sig_b64key[0] == '\0')
+		else if (b64key[0] == '\0')
 		{
 			return DKIM_STAT_REVOKED;
 		}
-		sig->sig_b64keylen = strlen((char *) sig->sig_b64key);
+		b64keylen = strlen((char *) b64key);
 
-		sig->sig_key = DKIM_MALLOC(dkim, sig->sig_b64keylen);
+		sig->sig_key = DKIM_MALLOC(dkim, b64keylen);
 		if (sig->sig_key == NULL)
 		{
 			dkim_error(dkim, "unable to allocate %d byte(s)",
-			           sig->sig_b64keylen);
+			           b64keylen);
 			return DKIM_STAT_NORESOURCE;
 		}
 
-		status = dkim_base64_decode(sig->sig_b64key, sig->sig_key,
-		                            sig->sig_b64keylen);
+		status = dkim_base64_decode(b64key, sig->sig_key, b64keylen);
 		if (status < 0)
 		{
 			dkim_error(dkim, "key missing");
@@ -3347,7 +3598,6 @@ dkim_eoh_sign(DKIM *dkim)
 	const u_char *hn = NULL;
 #endif /* REQUIRED_HEADERS_CHECKS */
 	DKIM_STAT status;
-	int hashtype = DKIM_HASHTYPE_UNKNOWN;
 	DKIM_CANON *bc;
 	DKIM_CANON *hc;
 	DKIM_LIB *lib;
@@ -3398,27 +3648,12 @@ dkim_eoh_sign(DKIM *dkim)
 	}
 #endif /* REQUIRED_HEADERS_CHECKS */
 
-	/* determine hash type */
-	switch (dkim->dkim_signalg)
-	{
-	  case DKIM_SIGN_RSASHA1:
-		hashtype = DKIM_HASHTYPE_SHA1;
-		break;
-
-	  case DKIM_SIGN_RSASHA256:
-	  case DKIM_SIGN_ED25519SHA256:
-		hashtype = DKIM_HASHTYPE_SHA256;
-		break;
-
-	  default:
-		assert(0);
-		/* NOTREACHED */
-	}
-
 	if (dkim->dkim_siglist == NULL)
 	{
+		struct dkim_siginfo * sig;
+
 		/* initialize signature and canonicalization for signing */
-		dkim->dkim_siglist = DKIM_MALLOC(dkim, sizeof(DKIM_SIGINFO **));
+		dkim->dkim_siglist = DKIM_MALLOC(dkim, 1 * sizeof(DKIM_SIGINFO *));
 		if (dkim->dkim_siglist == NULL)
 		{
 			dkim_error(dkim, "failed to allocate %d byte(s)",
@@ -3435,20 +3670,24 @@ dkim_eoh_sign(DKIM *dkim)
 			return DKIM_STAT_NORESOURCE;
 		}
 		dkim->dkim_sigcount = 1;
-		memset(dkim->dkim_siglist[0], '\0',
-		       sizeof(struct dkim_siginfo));
+
+		sig = dkim->dkim_siglist[0];
+
+		memset(sig, '\0', sizeof(*sig));
+
+		if ((status = dkim_privkey_hashalg(dkim, sig)) != DKIM_STAT_OK)
+   			return status;
+
 		dkim->dkim_siglist[0]->sig_domain = dkim->dkim_domain;
 		dkim->dkim_siglist[0]->sig_selector = dkim->dkim_selector;
-		dkim->dkim_siglist[0]->sig_hashtype = hashtype;
-		dkim->dkim_siglist[0]->sig_signalg = dkim->dkim_signalg;
 
 		status = dkim_add_canon(dkim, TRUE, dkim->dkim_hdrcanonalg,
-		                        hashtype, NULL, NULL, 0, &hc);
+		                        sig->sig_hashalg, NULL, NULL, 0, &hc);
 		if (status != DKIM_STAT_OK)
 			return status;
 
 		status = dkim_add_canon(dkim, FALSE, dkim->dkim_bodycanonalg,
-		                        hashtype, NULL, NULL,
+		                        sig->sig_hashalg, NULL, NULL,
 		                        dkim->dkim_signlen, &bc);
 		if (status != DKIM_STAT_OK)
 			return status;
@@ -3724,20 +3963,30 @@ dkim_eoh_verify(DKIM *dkim)
 static DKIM_STAT
 dkim_eom_sign(DKIM *dkim)
 {
-	int status;
-	size_t l = 0;
+	DKIM_STAT status;
 	size_t diglen;
-	size_t siglen = 0;
 	size_t len;
-	DKIM_STAT ret;
 	u_char *digest;
 	u_char *sighdr;
-	u_char *signature = NULL;
+	u_char * signature = NULL;
+	size_t siglen = 0;
 	DKIM_SIGINFO *sig;
 	DKIM_CANON *hc;
 	struct dkim_dstring *tmphdr;
-	struct dkim_crypto *crypto = NULL;
 	struct dkim_header hdr;
+	struct dkim_pki * pki;
+	struct dkim_pkm * pkm;
+	int clrv = -1;
+#if defined(USE_GNUTLS)
+	gnutls_datum_t dd;
+	gnutls_datum_t sd;
+#endif /* USE_GNUTLS */
+
+#if defined(USE_GNUTLS)
+#define FFF(d, s)	gnutls_free((s))
+#else /* USE_GNUTLS */
+#define FFF(d, s)	DKIM_FREE((d), (s))
+#endif /* !USE_GNUTLS */
 
 	assert(dkim != NULL);
 
@@ -3830,19 +4079,6 @@ dkim_eom_sign(DKIM *dkim)
 
 	dkim->dkim_bodydone = TRUE;
 
-	/* set signature timestamp */
-	if (dkim->dkim_libhandle->dkiml_fixedtime != 0)
-	{
-		dkim->dkim_timestamp = dkim->dkim_libhandle->dkiml_fixedtime;
-	}
-	else
-	{
-		time_t now;
-
-		(void) time(&now);
-		dkim->dkim_timestamp = (uint64_t) now;
-	}
-
 	/* sign with l= if requested */
 	if ((dkim->dkim_libhandle->dkiml_flags & DKIM_LIBFLAGS_SIGNLEN) != 0)
 		dkim->dkim_partial = TRUE;
@@ -3853,73 +4089,6 @@ dkim_eom_sign(DKIM *dkim)
 	sig = dkim->dkim_siglist[0];
 	hc = sig->sig_hdrcanon;
 
-	if (dkim->dkim_keydata == NULL)
-	{
-		if (dkim_privkey_load(dkim) != DKIM_STAT_OK)
-			return DKIM_STAT_NORESOURCE;
-	}
-
-	crypto = dkim->dkim_keydata;
-#ifdef USE_GNUTLS
-	if (crypto->crypto_privkey == NULL)
-#else /* USE_GNUTLS */
-	if (!(crypto->crypto_key != NULL ||
-	      (sig->sig_signalg == DKIM_SIGN_ED25519SHA256 &&
-	       crypto->crypto_pkey != NULL)))
-#endif /* USE_GNUTLS */
-	{
-		dkim_error(dkim, "private key load failed");
-		return DKIM_STAT_NORESOURCE;
-	}
-
-	sig->sig_keybits = crypto->crypto_keysize;
-	sig->sig_signature = dkim->dkim_keydata;
-	sig->sig_flags |= DKIM_SIGFLAG_KEYLOADED;
-
-	if (sig->sig_signalg != DKIM_SIGN_ED25519SHA256 &&
-	    sig->sig_keybits < dkim->dkim_libhandle->dkiml_minkeybits)
-	{
-		sig->sig_error = DKIM_SIGERROR_KEYTOOSMALL;
-		dkim_error(dkim,
-		           "private key too small (%d bits, need at least %d)",
-		           sig->sig_keybits,
-		           dkim->dkim_libhandle->dkiml_minkeybits);
-		return DKIM_STAT_SIGGEN;
-	}
-
-	switch (sig->sig_signalg)
-	{
-	  case DKIM_SIGN_RSASHA1:
-	  case DKIM_SIGN_RSASHA256:
-	  {
-		assert(sig->sig_hashtype == DKIM_HASHTYPE_SHA1 ||
-		       sig->sig_hashtype == DKIM_HASHTYPE_SHA256);
-
-		if (sig->sig_hashtype == DKIM_HASHTYPE_SHA256)
-		{
-			assert(DKIM_LIBFEATURE(SHA256));
-		}
-
-		sig->sig_signature = (void *) dkim->dkim_keydata;
-		sig->sig_keytype = DKIM_KEYTYPE_RSA;
-
-		break;
-	  }
-
-	  case DKIM_SIGN_ED25519SHA256:
-	  {
-		assert(sig->sig_hashtype == DKIM_HASHTYPE_SHA256);
-
-		sig->sig_signature = (void *) dkim->dkim_keydata;
-		sig->sig_keytype = DKIM_KEYTYPE_ED25519;
-
-		break;
-	  }
-
-	  default:
-		assert(0);
-	}
-
 	/* construct the DKIM signature header to be canonicalized */
 	tmphdr = dkim_dstring_new(dkim, BUFRSZ, MAXBUFRSZ);
 	if (tmphdr == NULL)
@@ -3928,11 +4097,11 @@ dkim_eom_sign(DKIM *dkim)
 	dkim_dstring_catn(tmphdr, (u_char *) DKIM_SIGNHEADER ": ",
 	                  sizeof DKIM_SIGNHEADER + 1);
 
-	ret = dkim_getsighdr_d(dkim, dkim_dstring_len(tmphdr), &sighdr, &len);
-	if (ret != DKIM_STAT_OK)
+	status = dkim_getsighdr_d(dkim, dkim_dstring_len(tmphdr), &sighdr, &len);
+	if (status != DKIM_STAT_OK)
 	{
 		dkim_dstring_free(tmphdr);
-		return ret;
+		return status;
 	}
 
 	dkim_dstring_catn(tmphdr, sighdr, len);
@@ -3951,148 +4120,133 @@ dkim_eom_sign(DKIM *dkim)
 	dkim_dstring_free(tmphdr);
 
 	/* finalize */
-	ret = dkim_canon_getfinal(hc, &digest, &diglen);
-	if (ret != DKIM_STAT_OK)
+	status = dkim_canon_getfinal(hc, &digest, &diglen);
+	if (status != DKIM_STAT_OK)
 	{
 		dkim_error(dkim, "dkim_canon_getfinal() failed");
 		return DKIM_STAT_INTERNAL;
 	}
 
 	/* compute and store the signature */
-	switch (sig->sig_signalg)
+	pki = &sig->sig_pki;
+	pkm = &sig->sig_pkm;
+
+#if !defined(USE_GNUTLS)
+	signature = DKIM_MALLOC(dkim, pki->pki_sigsize);
+	if (signature == NULL)
 	{
-#ifdef USE_GNUTLS
-	  case DKIM_SIGN_RSASHA1:
-	  case DKIM_SIGN_RSASHA256:
-	  {
-		int alg;
-		gnutls_datum_t dd;
-		struct dkim_crypto *crypto;
+		dkim_error(dkim, "unable to allocate %d byte(s)",
+		           pki->pki_sigsize);
+		return DKIM_STAT_NORESOURCE;
+	}
+#endif /* !USE_GNUTLS */
 
-		crypto = (struct dkim_crypto *) sig->sig_signature;
+#if defined(USE_GNUTLS)
 
-		dd.data = digest;
-		dd.size = diglen;
+	dd.data = digest;
+	dd.size = diglen;
 
-		if (sig->sig_signalg == DKIM_SIGN_RSASHA1)
-			alg = GNUTLS_DIG_SHA1;
-		else
-			alg = GNUTLS_DIG_SHA256;
-
-		status = gnutls_privkey_sign_hash(crypto->crypto_privkey, alg,
-		                                  0, &dd,
-		                                  &crypto->crypto_rsaout);
-		if (status != GNUTLS_E_SUCCESS)
-		{
-			dkim_sig_load_ssl_errors(dkim, sig, status);
-			dkim_error(dkim,
-			           "signature generation failed (status %d)",
-			           status);
-			return DKIM_STAT_INTERNAL;
-		}
-
-		signature = crypto->crypto_rsaout.data;
-		siglen = crypto->crypto_rsaout.size;
-
+	switch (pki->pki_id)
+	{
+#if DKIM_LIBFEATURE(ED25519)
+	  case DKIM_KEYTYPE_ED25519:
+		clrv = gnutls_privkey_sign_data(pkm->pkm_priv,
+		                                GNUTLS_DIG_SHA512,
+		                                0, &dd, &sd);
 		break;
-	  }
-#else /* USE_GNUTLS */
-	  case DKIM_SIGN_RSASHA1:
-	  case DKIM_SIGN_RSASHA256:
-	  {
-		int nid;
-		struct dkim_crypto *crypto;
+#endif /* ED25519 */
 
-		crypto = (struct dkim_crypto *) sig->sig_signature;
-
-		nid = NID_sha1;
-
-		if (DKIM_LIBFEATURE(SHA256) &&
-		    sig->sig_hashtype == DKIM_HASHTYPE_SHA256)
-			nid = NID_sha256;
-
-		status = RSA_sign(nid, digest, diglen,
-	                          crypto->crypto_out, (int *) &l,
-		                  crypto->crypto_key);
-		if (status != 1 || l == 0)
-		{
-			dkim_load_ssl_errors(dkim, 0);
-			dkim_error(dkim,
-			           "signature generation failed (status %d, length %d)",
-			           status, l);
-
-			RSA_free(crypto->crypto_key);
-			BIO_CLOBBER(crypto->crypto_keydata);
-
-			return DKIM_STAT_INTERNAL;
-		}
-
-		crypto->crypto_outlen = l;
-
-		signature = crypto->crypto_out;
-		siglen = crypto->crypto_outlen;
-
+	  case DKIM_KEYTYPE_RSA:
+		clrv = gnutls_privkey_sign_hash(pkm->pkm_priv,
+		                                dkim_cl_da(sig->sig_hashalg),
+		                                0, &dd, &sd);
 		break;
-	  }
-
-# ifdef HAVE_ED25519
-	  case DKIM_SIGN_ED25519SHA256:
-	  {
-		EVP_MD_CTX *md_ctx = NULL;
-		struct dkim_crypto *crypto;
-
-		crypto = (struct dkim_crypto *) sig->sig_signature;
-
-		md_ctx = EVP_MD_CTX_new();
-		if (md_ctx == NULL)
-		{
-			dkim_load_ssl_errors(dkim, 0);
-			dkim_error(dkim,
-			           "failed to initialize digest context");
-
-			RSA_free(crypto->crypto_key);
-			BIO_CLOBBER(crypto->crypto_keydata);
-
-			return DKIM_STAT_INTERNAL;
-		}
-
-		status = EVP_DigestSignInit(md_ctx, NULL,
-		                            NULL, NULL, crypto->crypto_pkey);
-		if (status == 1)
-		{
-			l = crypto->crypto_outlen;
-			status = EVP_DigestSign(md_ctx, crypto->crypto_out, &l,
-		                                digest, diglen);
-		}
-
-		if (status != 1)
-		{
-			/* dkim_load_ssl_errors(dkim, 0); */
-			dkim_error(dkim,
-			           "signature generation failed (status %d, length %d, %s)",
-			           status, l, ERR_error_string(ERR_get_error(), NULL));
-
-			RSA_free(crypto->crypto_key);
-			BIO_CLOBBER(crypto->crypto_keydata);
-
-			return DKIM_STAT_INTERNAL;
-		}
-
-		crypto->crypto_outlen = l;
-
-		signature = crypto->crypto_out;
-		siglen = crypto->crypto_outlen;
-
-		EVP_MD_CTX_free(md_ctx);
-
-		break;
-	  }
-# endif /* HAVE_ED25519 */
-#endif /* USE_GNUTLS */
 
 	  default:
 		assert(0);
 	}
+
+	if (clrv != GNUTLS_E_SUCCESS)
+	{
+		dkim_sig_load_ssl_errors(dkim, sig, status);
+		dkim_error(dkim,
+		           "gnutls_privkey_sign_(data,hash)() failed");
+		return DKIM_STAT_SIGGEN;
+	}
+
+	signature = sd.data;
+	siglen = sd.size;
+
+#else /* USE_GNUTLS */
+
+	switch (pki->pki_id)
+	{
+#if DKIM_LIBFEATURE(ED25519)
+	  case DKIM_KEYTYPE_ED25519:
+	  {
+		EVP_MD_CTX * md_ctx;
+
+		md_ctx = EVP_MD_CTX_new();
+		if (md_ctx == NULL)
+		{
+			DKIM_FREE(dkim, signature);
+			dkim_load_ssl_errors(dkim, 0);
+			dkim_error(dkim, "EVP_MD_CTX_new() failed");
+			return DKIM_STAT_SIGGEN;
+		}
+
+		clrv = EVP_DigestSignInit(md_ctx, NULL, NULL, NULL, pkm->pkm_pkey);
+		if (clrv == 1)
+		{
+			siglen = pki->pki_sigsize;
+			clrv = EVP_DigestSign(md_ctx, signature, &siglen,
+		                              digest, diglen);
+		}
+
+		EVP_MD_CTX_free(md_ctx);
+
+		if (clrv != 1)
+		{
+			DKIM_FREE(dkim, signature);
+			dkim_load_ssl_errors(dkim, 0);
+			dkim_error(dkim,
+			           "EVP_DigestSign(Init)() failed "
+			           "(status %d, length %d, %s)",
+			           clrv, siglen,
+			           ERR_error_string(ERR_get_error(), NULL));
+			return DKIM_STAT_SIGGEN;
+		}
+
+		break;
+	  }
+# endif /* ED25519 */
+
+	  case DKIM_KEYTYPE_RSA:
+	  {
+		unsigned int sl = 0;
+
+		clrv = RSA_sign(sig->sig_hashalg, digest, diglen,
+		                signature, &sl, pkm->pkm_rsa);
+		if (clrv != 1 || sl == 0)
+		{
+			DKIM_FREE(dkim, signature);
+			dkim_load_ssl_errors(dkim, 0);
+			dkim_error(dkim,
+			           "RSA_sign() failed (status %d, length %d)",
+			           clrv, sl);
+			return DKIM_STAT_SIGGEN;
+		}
+
+		siglen = sl;
+
+		break;
+	  }
+
+	  default:
+		assert(0);
+	}
+
+#endif /* !USE_GNUTLS */
 
 	/* base64-encode the signature */
 	dkim->dkim_b64siglen = siglen * 3 + 5;
@@ -4100,22 +4254,16 @@ dkim_eom_sign(DKIM *dkim)
 	dkim->dkim_b64sig = DKIM_MALLOC(dkim, dkim->dkim_b64siglen);
 	if (dkim->dkim_b64sig == NULL)
 	{
+		FFF(dkim, signature);
 		dkim_error(dkim, "unable to allocate %d byte(s)",
 		           dkim->dkim_b64siglen);
-#ifndef USE_GNUTLS
-		BIO_CLOBBER(crypto->crypto_keydata);
-#endif /* ! USE_GNUTLS */
 		return DKIM_STAT_NORESOURCE;
 	}
 	memset(dkim->dkim_b64sig, '\0', dkim->dkim_b64siglen);
 
 	status = dkim_base64_encode(signature, siglen, dkim->dkim_b64sig,
 	                            dkim->dkim_b64siglen);
-
-#ifndef USE_GNUTLS
-	BIO_CLOBBER(crypto->crypto_keydata);
-#endif /* ! USE_GNUTLS */
-
+	FFF(dkim, signature);
 	if (status == -1)
 	{
 		dkim_error(dkim,
@@ -4126,6 +4274,7 @@ dkim_eom_sign(DKIM *dkim)
 	dkim->dkim_signature = sig;
 
 	return DKIM_STAT_OK;
+#undef FFF
 }
 
 /*
@@ -4297,7 +4446,7 @@ dkim_eom_verify(DKIM *dkim, _Bool *testkey)
 				*/
 
 				if (sig->sig_error == 0 &&
-				    sig->sig_signalg != DKIM_SIGN_ED25519SHA256 &&
+				    sig->sig_pkalg == DKIM_KEYTYPE_RSA &&
 				    sig->sig_keybits < lib->dkiml_minkeybits)
 				{
 					sig->sig_error = DKIM_SIGERROR_KEYTOOSMALL;
@@ -4398,7 +4547,7 @@ dkim_eom_verify(DKIM *dkim, _Bool *testkey)
 **  	memclosure -- memory closure
 **  	hdrcanon_alg -- canonicalization algorithm to use for headers
 **  	bodycanon_alg -- canonicalization algorithm to use for headers
-**  	sign_alg -- signature algorithm to use
+**  	hash_alg -- hash algorithm to use
 **  	statp -- status (returned)
 **
 **  Return value:
@@ -4407,8 +4556,8 @@ dkim_eom_verify(DKIM *dkim, _Bool *testkey)
 
 static DKIM *
 dkim_new(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
-         dkim_canon_t hdrcanon_alg, dkim_canon_t bodycanon_alg,
-         dkim_alg_t sign_alg, DKIM_STAT *statp)
+         dkim_canon_arg_t hdrcanon_alg, dkim_canon_arg_t bodycanon_alg,
+         dkim_hashalg_arg_t hash_alg, DKIM_STAT *statp)
 {
 	DKIM *new;
 
@@ -4426,12 +4575,9 @@ dkim_new(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 	/* populate defaults */
 	memset(new, '\0', sizeof(struct dkim));
 	new->dkim_id = id;
-	new->dkim_signalg = (sign_alg == -1 ? DKIM_SIGN_DEFAULT
-	                                    : sign_alg);
-	new->dkim_hdrcanonalg = (hdrcanon_alg == -1 ? DKIM_CANON_DEFAULT
-	                                            : hdrcanon_alg);
-	new->dkim_bodycanonalg = (bodycanon_alg == -1 ? DKIM_CANON_DEFAULT
-	                                              : bodycanon_alg);
+	new->dkim_hashalg = hash_alg;
+	new->dkim_hdrcanonalg = (dkim_canon_t) hdrcanon_alg;
+	new->dkim_bodycanonalg = (dkim_canon_t) bodycanon_alg;
 	new->dkim_querymethods = NULL;
 	new->dkim_mode = DKIM_MODE_UNKNOWN;
 	new->dkim_chunkcrlf = DKIM_CRLF_UNKNOWN;
@@ -5049,7 +5195,12 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 			status = regcomp(&lib->dkiml_hdrre, buf,
 			                 (REG_EXTENDED|REG_ICASE));
 			if (status != 0)
-				return DKIM_STAT_INTERNAL;
+			{
+				if (status == REG_ESPACE)
+					return DKIM_STAT_NORESOURCE;
+				else
+					return DKIM_STAT_INTERNAL;
+			}
 
 			lib->dkiml_signre = TRUE;
 		}
@@ -5096,7 +5247,12 @@ dkim_options(DKIM_LIB *lib, int op, dkim_opts_t opt, void *ptr, size_t len)
 			status = regcomp(&lib->dkiml_skiphdrre, buf,
 			                 (REG_EXTENDED|REG_ICASE));
 			if (status != 0)
-				return DKIM_STAT_INTERNAL;
+			{
+				if (status == REG_ESPACE)
+					return DKIM_STAT_NORESOURCE;
+				else
+					return DKIM_STAT_INTERNAL;
+			}
 
 			lib->dkiml_skipre = TRUE;
 		}
@@ -5216,6 +5372,8 @@ dkim_free(DKIM *dkim)
 
 		for (c = 0; c < dkim->dkim_sigcount; c++)
 		{
+			struct dkim_siginfo * sig = dkim->dkim_siglist[c];
+
 			if (dkim->dkim_siglist[c]->sig_context != NULL &&
 			    dkim->dkim_libhandle->dkiml_sig_handle_free != NULL)
 			{
@@ -5226,29 +5384,17 @@ dkim_free(DKIM *dkim)
 			if (dkim->dkim_siglist[c]->sig_sslerrbuf != NULL)
 				dkim_dstring_free(dkim->dkim_siglist[c]->sig_sslerrbuf);
 
-			CLOBBER(dkim->dkim_siglist[c]->sig_key);
-			CLOBBER(dkim->dkim_siglist[c]->sig_sig);
-			if (dkim->dkim_siglist[c]->sig_keytype == DKIM_KEYTYPE_RSA)
-			{
-				struct dkim_crypto *crypto;
+			if (dkim->dkim_mode == DKIM_MODE_SIGN)
+				dkim_privkey_free(&sig->sig_pkm);
 
-				crypto = dkim->dkim_siglist[c]->sig_signature;
-				if (crypto != NULL)
-				{
-#ifdef USE_GNUTLS
-					KEY_CLOBBER(crypto->crypto_key);
-					PUBKEY_CLOBBER(crypto->crypto_pubkey);
-					PRIVKEY_CLOBBER(crypto->crypto_privkey);
-					HCLOBBER(crypto->crypto_rsaout.data);
-#else /* USE_GNUTLS */
-					BIO_CLOBBER(crypto->crypto_keydata);
-					EVP_CLOBBER(crypto->crypto_pkey);
-					RSA_CLOBBER(crypto->crypto_key);
-					CLOBBER(crypto->crypto_out);
-#endif /* USE_GNUTLS */
-				}
+			if (dkim->dkim_mode == DKIM_MODE_VERIFY)
+			{
+				if (sig->sig_key != NULL)
+					DKIM_FREE(dkim, sig->sig_key);
+				if (sig->sig_sig != NULL)
+					DKIM_FREE(dkim, sig->sig_sig);
 			}
-			CLOBBER(dkim->dkim_siglist[c]->sig_signature);
+
 			CLOBBER(dkim->dkim_siglist[c]);
 		}
 
@@ -5335,7 +5481,7 @@ dkim_free(DKIM *dkim)
 **  	domain -- domain for which this message is being signed
 **  	hdrcanonalg -- canonicalization algorithm to use for headers
 **  	bodycanonalg -- canonicalization algorithm to use for body
-**  	signalg -- signing algorithm to use
+**  	hashalg -- hash algorithm to use
 **  	length -- how many bytes of the body to sign (-1 for all)
 **  	statp -- status (returned)
 **
@@ -5346,8 +5492,8 @@ dkim_free(DKIM *dkim)
 DKIM *
 dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
           const dkim_sigkey_t secretkey, const unsigned char *selector,
-          const unsigned char *domain, dkim_canon_t hdrcanonalg,
-	  dkim_canon_t bodycanonalg, dkim_alg_t signalg,
+          const unsigned char *domain, dkim_canon_arg_t hdrcanonalg,
+          dkim_canon_arg_t bodycanonalg, dkim_hashalg_arg_t hashalg,
           ssize_t length, DKIM_STAT *statp)
 {
 	unsigned char *p;
@@ -5357,29 +5503,7 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 	assert(secretkey != NULL);
 	assert(selector != NULL);
 	assert(domain != NULL);
-	assert(hdrcanonalg == DKIM_CANON_SIMPLE ||
-	       hdrcanonalg == DKIM_CANON_RELAXED);
-	assert(bodycanonalg == DKIM_CANON_SIMPLE ||
-	       bodycanonalg == DKIM_CANON_RELAXED);
-	assert(signalg == DKIM_SIGN_DEFAULT ||
-	       signalg == DKIM_SIGN_RSASHA1 ||
-               signalg == DKIM_SIGN_RSASHA256 ||
-               signalg == DKIM_SIGN_ED25519SHA256);
 	assert(statp != NULL);
-
-#if DKIM_LIBFEATURE(SHA256)
-	if (signalg == DKIM_SIGN_DEFAULT)
-		signalg = DKIM_SIGN_RSASHA256;
-#else /* SHA256 */
-	if (signalg == DKIM_SIGN_RSASHA256)
-	{
-		*statp = DKIM_STAT_INVALID;
-		return NULL;
-	}
-
-	if (signalg == DKIM_SIGN_DEFAULT)
-		signalg = DKIM_SIGN_RSASHA1;
-#endif /* !SHA256 */
 
 	if (!dkim_strisprint((u_char *) domain) ||
 	    !dkim_strisprint((u_char *) selector))
@@ -5389,7 +5513,7 @@ dkim_sign(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 	}
 
 	new = dkim_new(libhandle, id, memclosure, hdrcanonalg, bodycanonalg,
-	               signalg, statp);
+	               hashalg, statp);
 
 	if (new != NULL)
 	{
@@ -5491,8 +5615,8 @@ dkim_verify(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 #endif /* !MANAGE_AUTHOR_IDENTIFIERS */
 	assert(statp != NULL);
 
-	new = dkim_new(libhandle, id, memclosure, DKIM_CANON_UNKNOWN,
-	               DKIM_CANON_UNKNOWN, DKIM_SIGN_UNKNOWN, statp);
+	new = dkim_new(libhandle, id, memclosure, DKIM_CANON_ARG_DEFAULT,
+	               DKIM_CANON_ARG_DEFAULT, DKIM_HASHALG_ARG_DEFAULT, statp);
 
 	if (new != NULL)
 	{
@@ -5538,7 +5662,7 @@ dkim_resign(DKIM *new, DKIM *old, _Bool hdrbind)
 	_Bool tmp;
 #endif /* DEBUG_FEATURES */
 	DKIM_STAT status;
-	int hashtype = DKIM_HASHTYPE_UNKNOWN;
+	struct dkim_siginfo * sig;
 	DKIM_CANON *bc;
 	DKIM_CANON *hc;
 	DKIM_LIB *lib;
@@ -5575,22 +5699,6 @@ dkim_resign(DKIM *new, DKIM *old, _Bool hdrbind)
 
 	new->dkim_version = lib->dkiml_version;
 
-	/* determine hash type */
-	switch (new->dkim_signalg)
-	{
-	  case DKIM_SIGN_RSASHA1:
-		hashtype = DKIM_HASHTYPE_SHA1;
-		break;
-
-	  case DKIM_SIGN_RSASHA256:
-		hashtype = DKIM_HASHTYPE_SHA256;
-		break;
-
-	  default:
-		assert(0);
-		/* NOTREACHED */
-	}
-
 	/* initialize signature and canonicalization for signing */
 	new->dkim_siglist = DKIM_MALLOC(new, sizeof(DKIM_SIGINFO *));
 	if (new->dkim_siglist == NULL)
@@ -5609,19 +5717,25 @@ dkim_resign(DKIM *new, DKIM *old, _Bool hdrbind)
 	}
 
 	new->dkim_sigcount = 1;
-	memset(new->dkim_siglist[0], '\0', sizeof(struct dkim_siginfo));
+
+	sig = new->dkim_siglist[0];
+
+	memset(sig, '\0', sizeof(*sig));
+
+	if ((status = dkim_privkey_hashalg(new, sig)) != DKIM_STAT_OK)
+		return status;
+
 	new->dkim_siglist[0]->sig_domain = new->dkim_domain;
 	new->dkim_siglist[0]->sig_selector = new->dkim_selector;
-	new->dkim_siglist[0]->sig_hashtype = hashtype;
-	new->dkim_siglist[0]->sig_signalg = new->dkim_signalg;
 
-	status = dkim_add_canon(new, TRUE, new->dkim_hdrcanonalg, hashtype,
-	                        NULL, NULL, 0, &hc);
+	status = dkim_add_canon(new, TRUE, new->dkim_hdrcanonalg,
+	                        sig->sig_hashalg, NULL, NULL, 0, &hc);
 	if (status != DKIM_STAT_OK)
 		return status;
 
 	status = dkim_add_canon(old, FALSE, new->dkim_bodycanonalg,
-	                        hashtype, NULL, NULL, new->dkim_signlen, &bc);
+	                        sig->sig_hashalg, NULL, NULL,
+	                        new->dkim_signlen, &bc);
 	if (status != DKIM_STAT_OK)
 		return status;
 
@@ -5680,20 +5794,8 @@ DKIM_STAT
 dkim_sig_process(DKIM *dkim, DKIM_SIGINFO *sig)
 {
 	DKIM_STAT status;
-	int nid;
-	int vstat;
+	u_char * digest;
 	size_t diglen = 0;
-#ifdef USE_GNUTLS
-	gnutls_datum_t key;
-# if GNUTLS_VERSION_MAJOR == 3
-	gnutls_digest_algorithm_t hash;
-	gnutls_sign_algorithm_t signalg;
-# endif /* GNUTLS_VERSION_MAJOR == 3 */
-#else /* USE_GNUTLS */
-	BIO *key;
-#endif /* USE_GNUTLS */
-	u_char *digest = NULL;
-	struct dkim_crypto *crypto;
 
 	assert(dkim != NULL);
 	assert(sig != NULL);
@@ -5720,9 +5822,20 @@ dkim_sig_process(DKIM *dkim, DKIM_SIGINFO *sig)
 	/* skip the DNS part if we've already done it */
 	if ((sig->sig_flags & DKIM_SIGFLAG_PROCESSED) == 0)
 	{
+		struct dkim_pkm pkm;
+		int clrv = -1;
+#if defined(USE_GNUTLS)
+		gnutls_datum_t dd;
+		gnutls_datum_t sd;
+# if GNUTLS_VERSION_MAJOR == 3
+		gnutls_sign_algorithm_t signalg;
+# endif /* GNUTLS_VERSION_MAJOR == 3 */
+#else /* USE_GNUTLS */
+		const char * emsg = "";
+#endif /* !USE_GNUTLS */
+
 		/* get the digest */
-		status = dkim_canon_getfinal(sig->sig_hdrcanon, &digest,
-		                             &diglen);
+		status = dkim_canon_getfinal(sig->sig_hdrcanon, &digest, &diglen);
 		if (status != DKIM_STAT_OK)
 		{
 			dkim_error(dkim, "dkim_canon_getfinal() failed");
@@ -5769,254 +5882,107 @@ dkim_sig_process(DKIM *dkim, DKIM_SIGINFO *sig)
 			return status;
 		}
 
-#ifdef USE_GNUTLS
-		key.data = sig->sig_key;
-		key.size = sig->sig_keylen;
-#else /* USE_GNUTLS */
 		/* load the public key */
-		key = BIO_new_mem_buf(sig->sig_key, sig->sig_keylen);
-		if (key == NULL)
-		{
-			dkim_error(dkim, "BIO_new_mem_buf() failed");
-			return DKIM_STAT_NORESOURCE;
-		}
-#endif /* USE_GNUTLS */
-
-		/* set up to verify */
-		if (sig->sig_signature == NULL)
-		{
-			crypto = DKIM_MALLOC(dkim, sizeof(struct dkim_crypto));
-			if (crypto == NULL)
-			{
-				dkim_error(dkim,
-				           "unable to allocate %d byte(s)",
-				           sizeof(struct dkim_crypto));
-#ifndef USE_GNUTLS
-				BIO_CLOBBER(key);
-#endif /* ! USE_GNUTLS */
-				return DKIM_STAT_NORESOURCE;
-			}
-
-			sig->sig_signature = crypto;
-		}
-		else
-		{
-			crypto = sig->sig_signature;
-		}
-		memset(crypto, '\0', sizeof(struct dkim_crypto));
-
-#ifdef USE_GNUTLS
-		crypto->crypto_sig.data = sig->sig_sig;
-		crypto->crypto_sig.size = sig->sig_siglen;
-
-		crypto->crypto_digest.data = digest;
-		crypto->crypto_digest.size = diglen;
-
-		status = gnutls_pubkey_init(&crypto->crypto_pubkey);
-		if (status != GNUTLS_E_SUCCESS)
-		{
-			dkim_sig_load_ssl_errors(dkim, sig, status);
-			dkim_error(dkim,
-			           "s=%s d=%s: gnutls_pubkey_init() failed",
-			           dkim_sig_getselector(sig),
-			           dkim_sig_getdomain(sig));
-
-			sig->sig_error = DKIM_SIGERROR_KEYDECODE;
-
+		memset(&pkm, '\0', sizeof(pkm));
+		dkim_pubkey_load(dkim, sig, &pkm);
+		if (sig->sig_error != DKIM_SIGERROR_UNKNOWN)
 			return DKIM_STAT_OK;
-		}
 
-		status = gnutls_pubkey_import(crypto->crypto_pubkey, &key,
-		                              GNUTLS_X509_FMT_DER);
-		if (status != GNUTLS_E_SUCCESS)
-		{
-			dkim_sig_load_ssl_errors(dkim, sig, status);
-			dkim_error(dkim,
-			           "s=%s d=%s: gnutls_pubkey_import() failed",
-			           dkim_sig_getselector(sig),
-			           dkim_sig_getdomain(sig));
+#if defined(USE_GNUTLS)
 
-			sig->sig_error = DKIM_SIGERROR_KEYDECODE;
+		sd.data = sig->sig_sig;
+		sd.size = sig->sig_siglen;
 
-			return DKIM_STAT_OK;
-		}
+		dd.data = digest;
+		dd.size = diglen;
 
 # if GNUTLS_VERSION_MAJOR == 2
-		vstat = gnutls_pubkey_verify_hash(crypto->crypto_pubkey, 0,
-		                                  &crypto->crypto_digest,
-		                                  &crypto->crypto_sig);
+		clrv = gnutls_pubkey_verify_hash(pkm.pkm_pub, 0, &dd, &sd);
 # else /* GNUTLS_VERSION_MAJOR == 2 */
-		hash = DKIM_LIBFEATURE(SHA256);
-		hash = (hash && sig->sig_hashtype == DKIM_HASHTYPE_SHA256)
-		       ? GNUTLS_DIG_SHA256
-		       : GNUTLS_DIG_SHA1;
-
-		signalg = gnutls_pk_to_sign(GNUTLS_PK_RSA, hash);
+		signalg = gnutls_pk_to_sign(dkim_cl_pka(sig->sig_pkalg),
+		                            dkim_cl_da(sig->sig_hashalg));
 		assert(signalg != GNUTLS_SIGN_UNKNOWN);
 
-		vstat = gnutls_pubkey_verify_hash2(crypto->crypto_pubkey,
-		                                   signalg, 0,
-		                                   &crypto->crypto_digest,
-		                                   &crypto->crypto_sig);
-# endif /* GNUTLS_VERSION_MAJOR == 2 */
-		if (vstat < 0)
-			dkim_sig_load_ssl_errors(dkim, sig, vstat);
+		clrv = gnutls_pubkey_verify_hash2(pkm.pkm_pub,
+		                                  signalg, 0, &dd, &sd);
+# endif /* GNUTLS_VERSION_MAJOR != 2 */
+
+		gnutls_pubkey_deinit(pkm.pkm_pub);
+
+		if (clrv < 0)
+			dkim_sig_load_ssl_errors(dkim, sig, clrv);
 		else
 			/* RSA_verify() returns 1 on success */
-			vstat = 1;
+			clrv = 1;
 
-		(void) gnutls_pubkey_get_pk_algorithm(crypto->crypto_pubkey,
-		                                      &crypto->crypto_keysize);
-
-		sig->sig_keybits = crypto->crypto_keysize;
 #else /* USE_GNUTLS */
-# ifdef HAVE_ED25519
-		if (sig->sig_signalg == DKIM_SIGN_ED25519SHA256)
+
+		switch (sig->sig_pkalg)
 		{
-			char *keydata;
-			long keylen;
-
-			keylen = BIO_get_mem_data(key, &keydata);
-			crypto->crypto_pkey = EVP_PKEY_new_raw_public_key(EVP_PKEY_ED25519,
-			                                                  NULL,
-			                                                  keydata,
-			                                                  keylen);
-		}
-		else
-# endif /* HAVE_ED25519 */
-		{
-			crypto->crypto_pkey = d2i_PUBKEY_bio(key, NULL);
-		}
-
-		if (crypto->crypto_pkey == NULL)
-		{
-			dkim_sig_load_ssl_errors(dkim, sig, 0);
-			dkim_error(dkim,
-			           "s=%s d=%s: EVP_PKEY construction failed",
-			           dkim_sig_getselector(sig),
-			           dkim_sig_getdomain(sig));
-
-			BIO_CLOBBER(key);
-
-			sig->sig_error = DKIM_SIGERROR_KEYDECODE;
-
-			return DKIM_STAT_OK;
-		}
-
-		/* set up the key object */
-# ifdef HAVE_ED25519
-	    	if (sig->sig_signalg == DKIM_SIGN_ED25519SHA256)
-		{
-			EVP_MD_CTX *md_ctx;
-
-			if (EVP_PKEY_id(crypto->crypto_pkey) != EVP_PKEY_ED25519)
-			{
-				dkim_error(dkim,
-				           "s=%s d=%s: not an ED25519 key",
-				           dkim_sig_getselector(sig),
-				           dkim_sig_getdomain(sig));
-
-				BIO_CLOBBER(key);
-
-				sig->sig_error = DKIM_SIGERROR_KEYDECODE;
-
-				return DKIM_STAT_OK;
-			}
-
-			crypto->crypto_in = sig->sig_sig;
-			crypto->crypto_inlen = sig->sig_siglen;
+#if DKIM_LIBFEATURE(ED25519)
+		  case DKIM_KEYTYPE_ED25519:
+		  {
+			EVP_MD_CTX * md_ctx;
 
 			md_ctx = EVP_MD_CTX_new();
 			if (md_ctx == NULL)
 			{
-				dkim_load_ssl_errors(dkim, 0);
-				dkim_error(dkim,
-				           "failed to initialize digest context");
-
-				BIO_CLOBBER(key);
-
+				emsg = "EVP_MD_CTX_new() failed";
 				sig->sig_error = DKIM_SIGERROR_KEYDECODE;
-
-				return DKIM_STAT_OK;
+				goto error_out;
 			}
 
-			status = EVP_DigestVerifyInit(md_ctx, NULL, NULL, NULL,
-                                                     crypto->crypto_pkey);
-			if (status != 1)
+			clrv = EVP_DigestVerifyInit(md_ctx, NULL, NULL, NULL,
+			                            pkm.pkm_pkey);
+			if (clrv != 1)
 			{
-				dkim_load_ssl_errors(dkim, 0);
-				dkim_error(dkim,
-				           "failed to initialize digest context");
-
-				BIO_CLOBBER(key);
-				EVP_MD_CTX_free(md_ctx);
-
+				emsg = "EVP_DigestVerifyInit() failed";
 				sig->sig_error = DKIM_SIGERROR_KEYDECODE;
-
-				return DKIM_STAT_OK;
+				goto md_out;
 			}
 
-			vstat = EVP_DigestVerify(md_ctx,
-			                         crypto->crypto_in,
-			                         crypto->crypto_inlen,
-			                         digest, diglen);
-
+			clrv = EVP_DigestVerify(md_ctx,
+			                        sig->sig_sig,
+			                        sig->sig_siglen,
+			                        digest, diglen);
+md_out:
 			EVP_MD_CTX_free(md_ctx);
+			break;
+		  }
+#endif /* ED25519 */
 
-			crypto->crypto_keysize = EVP_PKEY_size(crypto->crypto_pkey);
+		  case DKIM_KEYTYPE_RSA:
+
+			clrv = RSA_verify(sig->sig_hashalg, digest, diglen,
+			                  sig->sig_sig, sig->sig_siglen,
+			                  pkm.pkm_rsa);
+
+			RSA_free(pkm.pkm_rsa);
+			break;
+
+		  default:
+			assert(0);
 		}
-		else
-# endif /* HAVE_ED25519 */
+
+error_out:
+		EVP_PKEY_free(pkm.pkm_pkey);
+		BIO_free(pkm.pkm_bio);
+
+		if (sig->sig_error != DKIM_SIGERROR_UNKNOWN)
 		{
-			crypto->crypto_key = EVP_PKEY_get1_RSA(crypto->crypto_pkey);
-			if (crypto->crypto_key == NULL)
-			{
-				dkim_sig_load_ssl_errors(dkim, sig, 0);
-				dkim_error(dkim,
-				           "s=%s d=%s: EVP_PKEY_get1_RSA() failed",
-				           dkim_sig_getselector(sig),
-				           dkim_sig_getdomain(sig));
+			dkim_sig_load_ssl_errors(dkim, sig, 0);
+			dkim_error(dkim,
+			           "s=%s d=%s: %s",
+			           dkim_sig_getselector(sig),
+			           dkim_sig_getdomain(sig),
+			           emsg);
 
-				BIO_CLOBBER(key);
-
-				sig->sig_error = DKIM_SIGERROR_KEYDECODE;
-
-				return DKIM_STAT_OK;
-			}
-
-			crypto->crypto_keysize = RSA_size(crypto->crypto_key);
-			crypto->crypto_pad = RSA_PKCS1_PADDING;
-
-			crypto->crypto_in = sig->sig_sig;
-			crypto->crypto_inlen = sig->sig_siglen;
-
-			nid = NID_sha1;
-
-			if (DKIM_LIBFEATURE(SHA256) &&
-			    sig->sig_hashtype == DKIM_HASHTYPE_SHA256)
-				nid = NID_sha256;
-
-			vstat = RSA_verify(nid, digest, diglen,
-			                   crypto->crypto_in,
-			                   crypto->crypto_inlen,
-			                   crypto->crypto_key);
+			return DKIM_STAT_OK;
 		}
 
-		dkim_sig_load_ssl_errors(dkim, sig, 0);
+#endif /* !USE_GNUTLS */
 
-		sig->sig_keybits = 8 * crypto->crypto_keysize;
-
-		BIO_CLOBBER(key);
-		EVP_PKEY_free(crypto->crypto_pkey);
-		crypto->crypto_pkey = NULL;
-		if (crypto->crypto_key != NULL)
-		{
-			RSA_free(crypto->crypto_key);
-			crypto->crypto_key = NULL;
-		}
-#endif /* USE_GNUTLS */
-
-		if (vstat == 1)
+		if (clrv == 1)
 			sig->sig_flags |= DKIM_SIGFLAG_PASSED;
 		else
 			sig->sig_error = DKIM_SIGERROR_BADSIG;
@@ -7348,7 +7314,7 @@ dkim_getsighdr_d(DKIM *dkim, size_t initial, u_char **buf, size_t *buflen)
 			/* force wrapping of "b=" ? */
 
 			forcewrap = FALSE;
-			if (sig->sig_keytype == DKIM_KEYTYPE_RSA)
+			if (sig->sig_pkalg == DKIM_KEYTYPE_RSA)
 			{
 				u_int siglen;
 
@@ -7718,12 +7684,8 @@ dkim_sig_getreportinfo(DKIM *dkim, DKIM_SIGINFO *sig,
 	/* report descriptors regardless of reporting parameters */
 	if (sig->sig_hdrcanon != NULL)
 	{
-		switch (sig->sig_hashtype)
-		{
 #ifdef USE_GNUTLS
-		  case DKIM_HASHTYPE_SHA1:
-		  case DKIM_HASHTYPE_SHA256:
-		  {
+		{
 			struct dkim_sha *sha;
 
 			sha = (struct dkim_sha *) sig->sig_hdrcanon->canon_hash;
@@ -7735,11 +7697,11 @@ dkim_sig_getreportinfo(DKIM *dkim, DKIM_SIGINFO *sig,
 				sha = (struct dkim_sha *) sig->sig_bodycanon->canon_hash;
 				*bfd = sha->sha_tmpfd;
 			}
-
-			break;
-		  }
+		}
 #else /* USE_GNUTLS */
-		  case DKIM_HASHTYPE_SHA1:
+		switch (sig->sig_hashalg)
+		{
+		  case DKIM_HASHALG_SHA1:
 		  {
 			struct dkim_sha1 *sha1;
 
@@ -7757,7 +7719,7 @@ dkim_sig_getreportinfo(DKIM *dkim, DKIM_SIGINFO *sig,
 		  }
 
 # ifdef HAVE_SHA256
-		  case DKIM_HASHTYPE_SHA256:
+		  case DKIM_HASHALG_SHA256:
 		  {
 			struct dkim_sha256 *sha256;
 
@@ -7774,11 +7736,11 @@ dkim_sig_getreportinfo(DKIM *dkim, DKIM_SIGINFO *sig,
 			break;
 		  }
 # endif /* HAVE_SHA256 */
-#endif /* USE_GNUTLS */
 
 		  default:
 			assert(0);
 		}
+#endif /* !USE_GNUTLS */
 	}
 #else /* DEBUG_FEATURES */
 	if (hfd != NULL)
@@ -8058,10 +8020,6 @@ dkim_sig_getkeysize(DKIM_SIGINFO *sig, unsigned int *bits)
 	assert(sig != NULL);
 	assert(bits != NULL);
 
-	if (sig->sig_keybits == 0 &&
-            sig->sig_signalg != DKIM_SIGN_ED25519SHA256)
-		return DKIM_STAT_INVALID;
-
 	*bits = sig->sig_keybits;
 
 	return DKIM_STAT_OK;
@@ -8079,7 +8037,7 @@ dkim_sig_getkeysize(DKIM_SIGINFO *sig, unsigned int *bits)
 */
 
 DKIM_STAT
-dkim_sig_getsignalg(DKIM_SIGINFO *sig, dkim_alg_t *alg)
+dkim_sig_getsignalg(DKIM_SIGINFO *sig, dkim_signalg_t *alg)
 {
 	assert(sig != NULL);
 	assert(alg != NULL);
@@ -8302,7 +8260,8 @@ dkim_set_margin(DKIM *dkim, int value)
 **  	result -- DKIM_STAT_* constant to translate
 **
 **  Return value:
-**  	Pointer to a text describing "result", or NULL if none exists
+**  	Pointer to a text describing "result", or the empty string,
+**  	if none exists.
 */
 
 const char *
@@ -8645,7 +8604,7 @@ dkim_sig_getalgorithm(DKIM_SIGINFO *siginfo)
 {
 	assert(siginfo != NULL);
 
-	return (unsigned char *) dkim_code_to_name(algorithms,
+	return (unsigned char *) dkim_code_to_name(dkim_sign_alg,
 	                                           siginfo->sig_signalg);
 }
 
@@ -8698,8 +8657,8 @@ dkim_sig_geterror(DKIM_SIGINFO *siginfo)
 **  	sigerr -- DKIM_SIGERROR_* constant to translate
 **
 **  Return value:
-**  	A pointer to a human-readable expression of "sigerr", or NULL if none
-**  	exists.
+**  	A pointer to a human-readable expression of "sigerr", or the empty
+**  	string, if none exists.
 */
 
 const char *
@@ -9832,7 +9791,7 @@ dkim_signhdrs(DKIM *dkim, const char **hdrlist)
 			{
 				dkim_error(dkim, "could not allocate %d bytes",
 				           sizeof(regex_t));
-				return DKIM_STAT_INTERNAL;
+				return DKIM_STAT_NORESOURCE;
 			}
 		}
 
@@ -9853,9 +9812,13 @@ dkim_signhdrs(DKIM *dkim, const char **hdrlist)
 
 		status = regcomp(dkim->dkim_hdrre, buf,
 		                 (REG_EXTENDED|REG_ICASE));
-
 		if (status != 0)
-			return DKIM_STAT_INTERNAL;
+		{
+			if (status == REG_ESPACE)
+				return DKIM_STAT_NORESOURCE;
+			else
+				return DKIM_STAT_INTERNAL;
+		}
 	}
 
 	return DKIM_STAT_OK;
