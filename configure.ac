@@ -541,6 +541,18 @@ completely bypass the DKIM services],
 STANDARD_FEATURE([redirect-failures],
 	[do not redirect messages bearing signatures that failed to verify],
 	[message redirection])
+STANDARD_FEATURE([maximum-headers],
+	[disable checks that allow placing a limit on the maximum amount
+of header data a message may contain],
+	[header data limit check])
+STANDARD_FEATURE([canonicalization-header],
+	[disable obtaining canonicalization algorithm configuration
+from a header field of the message to sign],
+	[canonicalization configuration header])
+STANDARD_FEATURE([required-headers],
+	[do not check that the header section of a message conforms
+to RFC 5322, Section 3.6.],
+	[header section check])
 
 AS_IF([test x"$enable_]TR_US(production-tests)[" != x"no" -a \
             x"$enable_]TR_US(tas-support)[" = x"no"],

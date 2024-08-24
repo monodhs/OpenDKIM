@@ -179,6 +179,7 @@ struct addrlist
 {
 	char *		a_addr;			/* address */
 	struct addrlist * a_next;		/* next record */
+	char		a_data[];
 };
 
 /*
@@ -195,7 +196,9 @@ struct handling
 #if defined(_FFR_REPUTATION) || defined(_FFR_REPRRD)
 	int		hndl_reperr;		/* reputation error */
 #endif /* _FFR_REPUTATION || _FFR_REPRRD */
+#if defined(MAXIMUM_HEADERS)
 	int		hndl_security;		/* security concerns */
+#endif /* MAXIMUM_HEADERS */
 #if defined(STRICT_MODE)
 	int		hndl_mlfadd;		/* malformed address */
 	int		hndl_mlfmsg;		/* malformed message */
@@ -215,7 +218,9 @@ struct handling defaults =
 #ifdef _FFR_REPUTATION
 	DKIMF_MILTER_ACCEPT,			/* reperror */
 #endif /* _FFR_REPUTATION */
+#if defined(MAXIMUM_HEADERS)
 	DKIMF_MILTER_TEMPFAIL,			/* security */
+#endif /* MAXIMUM_HEADERS */
 #if defined(STRICT_MODE)
 	DKIMF_MILTER_REJECT,			/* malformed address */
 	DKIMF_MILTER_REJECT,			/* malformed message */
@@ -267,7 +272,9 @@ struct dkimf_config
 	_Bool		conf_reqreports;	/* request reports */
 	_Bool		conf_sendreports;	/* signature failure reports */
 #endif /* DEBUG_FEATURES */
+#if defined(REQUIRED_HEADERS)
 	_Bool		conf_reqhdrs;		/* required header checks */
+#endif /* REQUIRED_HEADERS */
 	_Bool		conf_authservidwithjobid; /* use jobids in A-R headers */
 #if defined(SINGLE_SIGNING)
 	_Bool		conf_subdomains;	/* sign subdomains */
@@ -315,7 +322,9 @@ struct dkimf_config
 	unsigned int	conf_mode;		/* operating mode */
 	unsigned int	conf_refcnt;		/* reference count */
 	unsigned int	conf_dnstimeout;	/* DNS timeout */
+#if defined(MAXIMUM_HEADERS)
 	unsigned int	conf_maxhdrsz;		/* max header bytes */
+#endif /* MAXIMUM_HEADERS */
 	unsigned int	conf_maxverify;		/* max sigs to verify */
 	unsigned int	conf_minkeybits;	/* min key size (bits) */
 #ifdef _FFR_REPUTATION
@@ -387,7 +396,9 @@ struct dkimf_config
 	char *		conf_canonstr;		/* canonicalization(s) string */
 	char *		conf_siglimit;		/* signing limits */
 	char *		conf_chroot;		/* chroot(2) directory */
+#if defined(CANONICALIZATION_HEADER)
 	char *		conf_selectcanonhdr;	/* canon select header name */
+#endif /* CANONICALIZATION_HEADER */
 #if defined(SINGLE_SIGNING)
 	u_char *	conf_selector;		/* key selector */
 #endif /* SINGLE_SIGNING */
@@ -585,8 +596,6 @@ struct msgctx
 	int		mctx_mresult;		/* SMFI status code */
 #endif /* USE_LUA */
 	int		mctx_status;		/* status to report back */
-	dkim_canon_arg_t mctx_hdrcanon;		/* header canonicalization */
-	dkim_canon_arg_t mctx_bodycanon;	/* body canonicalization */
 #if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	dkim_alg_t	mctx_signalg;		/* signature algorithm */
 #endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
@@ -594,7 +603,9 @@ struct msgctx
 	int		mctx_dnssec_key;	/* DNSSEC results for key */
 #endif /* USE_UNBOUND */
 	int		mctx_queryalg;		/* query algorithm */
+#if defined(MAXIMUM_HEADERS)
 	int		mctx_hdrbytes;		/* header space allocated */
+#endif /* MAXIMUM_HEADERS */
 	u_char *	mctx_jobid;		/* job ID */
 	DKIM *		mctx_dkimv;		/* verification handle */
 #ifdef _FFR_VBR
@@ -678,7 +689,9 @@ struct lookup
 #define	HNDL_BADSIGNATURE	2
 #define	HNDL_DNSERROR		3
 #define	HNDL_INTERNAL		4
+#if defined(MAXIMUM_HEADERS)
 #define	HNDL_SECURITY		5
+#endif /* MAXIMUM_HEADERS */
 #define	HNDL_NOKEY		6
 #define	HNDL_POLICYERROR	7
 #define	HNDL_REPERROR		8
@@ -725,7 +738,9 @@ struct lookup dkimf_params[] =
 #ifdef _FFR_REPUTATION
 	{ "reputationerror",	HNDL_REPERROR },
 #endif /* _FFR_REPUTATION */
+#if defined(MAXIMUM_HEADERS)
 	{ "security",		HNDL_SECURITY },
+#endif /* MAXIMUM_HEADERS */
 #if defined(STRICT_MODE)
 	{ "malformedaddress",	HNDL_MALFORMEDADDRESS },
 	{ "malformedmessage",	HNDL_MALFORMEDMESSAGE },
@@ -6254,7 +6269,9 @@ dkimf_config_new(void)
 	new->conf_bodycanon = DKIM_CANON_ARG_DEFAULT;
 	new->conf_dnstimeout = DEFTIMEOUT;
 	new->conf_maxverify = DEFMAXVERIFY;
+#if defined(MAXIMUM_HEADERS)
 	new->conf_maxhdrsz = DEFMAXHDRSZ;
+#endif /* MAXIMUM_HEADERS */
 	new->conf_signbytes = -1L;
 	new->conf_sigmintype = SIGMIN_BYTES;
 #ifdef _FFR_REPUTATION
@@ -6277,7 +6294,9 @@ dkimf_config_new(void)
 #ifdef _FFR_ATPS
 	new->conf_atpshash = dkimf_atpshash[0].str;
 #endif /* _FFR_ATPS */
+#if defined(CANONICALIZATION_HEADER)
 	new->conf_selectcanonhdr = SELECTCANONHDR;
+#endif /* CANONICALIZATION_HEADER */
 
 	memcpy(&new->conf_handling, &defaults, sizeof new->conf_handling);
 
@@ -6514,7 +6533,9 @@ dkimf_parsehandler(struct config *cfg, char *name, struct handling *hndl,
 		hndl->hndl_badsig = action;
 		hndl->hndl_dnserr = action;
 		hndl->hndl_internal = action;
+#if defined(MAXIMUM_HEADERS)
 		hndl->hndl_security = action;
+#endif /* MAXIMUM_HEADERS */
 		hndl->hndl_nokey = action;
 #if defined(_FFR_REPUTATION) || defined(_FFR_REPRRD)
 		hndl->hndl_reperr = action;
@@ -6544,9 +6565,11 @@ dkimf_parsehandler(struct config *cfg, char *name, struct handling *hndl,
 		hndl->hndl_internal = action;
 		return TRUE;
 
+#if defined(MAXIMUM_HEADERS)
 	  case HNDL_SECURITY:
 		hndl->hndl_security = action;
 		return TRUE;
+#endif /* MAXIMUM_HEADERS */
 
 	  case HNDL_NOKEY:
 		hndl->hndl_nokey = action;
@@ -6777,8 +6800,10 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		                  sizeof conf->conf_tmpdir);
 #endif /* DEBUG_FEATURES */
 
+#if defined(MAXIMUM_HEADERS)
 		(void) config_get(data, "MaximumHeaders", &conf->conf_maxhdrsz,
 		                  sizeof conf->conf_maxhdrsz);
+#endif /* MAXIMUM_HEADERS */
 
 		(void) config_get(data, "MaximumSignaturesToVerify",
 		                  &conf->conf_maxverify,
@@ -6851,12 +6876,14 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		                  &conf->conf_remsigs,
 		                  sizeof conf->conf_remsigs);
 
+#if defined(REQUIRED_HEADERS)
 		if (!conf->conf_reqhdrs)
 		{
 			(void) config_get(data, "RequiredHeaders",
 			                  &conf->conf_reqhdrs,
 			                  sizeof conf->conf_reqhdrs);
 		}
+#endif /* REQUIRED_HEADERS */
 
 #if defined(SINGLE_SIGNING)
 		if (conf->conf_selector == NULL)
@@ -9744,8 +9771,6 @@ dkimf_initcontext(struct dkimf_config *conf)
 	(void) memset(ctx, '\0', sizeof(struct msgctx));
 
 	ctx->mctx_status = DKIMF_STATUS_UNKNOWN;
-	ctx->mctx_hdrcanon = conf->conf_hdrcanon;
-	ctx->mctx_bodycanon = conf->conf_bodycanon;
 #if !defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 	ctx->mctx_signalg = DKIM_SIGN_UNKNOWN;
 #endif /* !CB8_AUTOMATIC_SIGNALG_SELECTION */
@@ -9855,8 +9880,6 @@ dkimf_cleanup(SMFICTX *ctx)
 			hdr = dfc->mctx_hqhead;
 			while (hdr != NULL)
 			{
-				TRYFREE(hdr->hdr_hdr);
-				TRYFREE(hdr->hdr_val);
 				prev = hdr;
 				hdr = hdr->hdr_next;
 				TRYFREE(prev);
@@ -9873,7 +9896,6 @@ dkimf_cleanup(SMFICTX *ctx)
 			{
 				next = addr->a_next;
 
-				TRYFREE(addr->a_addr);
 				TRYFREE(addr);
 
 				addr = next;
@@ -11511,6 +11533,8 @@ dkimf_ar_all_sigs(char *hdr, size_t hdrlen, struct dkimf_dstring *tmpstr,
 **  	conf -- configuration
 **  	sr -- a signing request
 **  	adomain -- author domain
+**  	hdrcanon -- header canonicalization
+**  	bdycanon -- body canonicalization
 **
 **  Return value:
 **  	Status from dkim_conditional, if any.
@@ -11518,7 +11542,9 @@ dkimf_ar_all_sigs(char *hdr, size_t hdrlen, struct dkimf_dstring *tmpstr,
 
 static DKIM_STAT
 dkimf_check_conditional(struct msgctx *dfc, struct dkimf_config *conf,
-                        struct signreq *sr, const u_char * adomain)
+                        struct signreq *sr, const u_char * adomain,
+                        dkim_canon_arg_t hdrcanon,
+                        dkim_canon_arg_t bdycanon)
 {
 	_Bool found;
 	size_t len;
@@ -11601,8 +11627,8 @@ dkimf_check_conditional(struct msgctx *dfc, struct dkimf_config *conf,
 			                            keydata,
 			                            selector,
 			                            sdomain,
-			                            dfc->mctx_hdrcanon,
-			                            dfc->mctx_bodycanon,
+			                            hdrcanon,
+			                            bdycanon,
 #if defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 			                            sr->srq_hashalg,
 #else /* CB8_AUTOMATIC_SIGNALG_SELECTION */
@@ -11649,6 +11675,210 @@ dkimf_check_conditional(struct msgctx *dfc, struct dkimf_config *conf,
 	return DKIM_STAT_OK;
 }
 #endif /* _FFR_CONDITIONAL */
+
+static _Bool
+cb8_npr(const struct msgctx * ctx)
+{
+	const struct Header * h;
+	const struct Header * from = NULL;
+	const struct Header * sender = NULL;
+	struct {
+		unsigned char
+		date,
+		from, sender, reply_to,
+		to, cc, bcc,
+		message_id, in_reply_to, references,
+		subject;
+	} c;
+
+#define CCC(h, n)	(strcasecmp((h)->hdr_hdr, n) == 0)
+#define III(c)		((c) += (c) > 1 ? 0 : 1)
+
+	memset(&c, '\0', sizeof(c));
+
+	for (h = ctx->mctx_hqhead; h != NULL; h = h->hdr_next)
+	{
+		/* Origination Date Field */
+		if      (CCC(h, "Date"))	{ III(c.date); }
+
+		/* Originator Fields */
+		else if (CCC(h, "From"))	{ III(c.from); from = h; }
+		else if (CCC(h, "Sender"))	{ III(c.sender); sender = h; }
+		else if (CCC(h, "Reply-To"))	{ III(c.reply_to); }
+
+		/* Destination Address Fields */
+		else if (CCC(h, "To"))		{ III(c.to); }
+		else if (CCC(h, "Cc"))		{ III(c.cc); }
+		else if (CCC(h, "Bcc"))		{ III(c.bcc); }
+
+		/* Identification Fields */
+		else if (CCC(h, "Message-ID"))	{ III(c.message_id); }
+		else if (CCC(h, "In-Reply-To"))	{ III(c.in_reply_to); }
+		else if (CCC(h, "References"))	{ III(c.references); }
+
+		/* Informational Fields */
+		else if (CCC(h, "Subject"))	{ III(c.subject); }
+	}
+
+	if (!(c.date == 1 &&
+	      c.from == 1 && c.sender <= 1 && c.reply_to <= 1 &&
+	      c.to <= 1 && c.cc <= 1 && c.bcc <= 1 &&
+	      c.message_id <= 1 && c.in_reply_to <= 1 && c.references <= 1 &&
+	      c.subject <= 1))
+		return FALSE;
+
+	/*
+	** RFC 5322, 3.6.2.:
+	**
+	** If the from field contains more than one mailbox specification
+	** in the mailbox-list, then the sender field, containing the field
+	** name "Sender" and a single mailbox specification, MUST appear
+	** in the message.
+	*/
+
+	{
+		const char * p;
+		_Bool multi = FALSE;
+		_Bool quoted = FALSE;
+		_Bool domlit = FALSE;
+		unsigned int comment = 0;
+
+		/*
+		** quoted-string   =   [CFWS]
+		**                     DQUOTE *([FWS] qcontent) [FWS] DQUOTE
+		**                     [CFWS]
+		** qcontent        =   qtext / quoted-pair
+		**
+		** domain-literal  =   [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]
+		**
+		** CFWS            =   (1*([FWS] comment) [FWS]) / FWS
+		** comment         =   "(" *([FWS] ccontent) [FWS] ")"
+		** ccontent        =   ctext / quoted-pair / comment
+		*/
+
+		/* XXX */
+		for (p = from->hdr_val; *p != '\0'; p++)
+		{
+			/*
+			** quoted-pair  =  ("\" (VCHAR / WSP)) / obs-qp
+			*/
+
+			if ((quoted || comment > 0) && *p == '\\')
+			{
+				if (*(p + 1) == '\0')
+					return FALSE;
+
+				p++;
+				continue;
+			}
+
+			/*
+			** qtext  =  %d33 /        ; Printable US-ASCII
+			**           %d35-91 /     ;  characters not including
+			**           %d93-126 /    ;  "\" or the quote character
+			**           obs-qtext
+			*/
+
+			if (quoted)
+			{
+				if (*p == '"')
+					quoted = FALSE;
+
+				continue;
+			}
+
+			/*
+			** dtext  =  %d33-90 /     ; Printable US-ASCII
+			**           %d94-126 /    ;  characters not including
+			**           obs-dtext     ;  "[", "]", or "\"
+			*/
+
+			if (domlit)
+			{
+				if (*p == ']')
+					domlit = FALSE;
+				else if (*p == '[' || *p == '\\')
+					return FALSE;
+
+				continue;
+			}
+
+			/*
+			** ctext  =  %d33-39 /     ; Printable US-ASCII
+			**           %d42-91 /     ;  characters not including
+			**           %d93-126 /    ;  "(", ")", or "\"
+			**           obs-ctext
+			*/
+
+			if (comment > 0)
+			{
+				if (*p == '(')
+					comment++;
+				else if (*p == ')')
+					comment--;
+
+				continue;
+			}
+
+			switch (*p)
+			{
+			  case '"':
+				quoted = TRUE;
+				continue;
+			  case '[':
+				domlit = TRUE;
+				continue;
+			  case '(':
+				comment++;
+				continue;
+			  case ',':
+				/* XXX */
+				multi = TRUE;
+				goto done;
+			}
+		}
+done:
+		if (quoted || domlit || comment > 0 || (multi && sender == NULL))
+			return FALSE;
+	}
+
+	/*
+	** §§ 1 und 2 DKIM-S-OA
+	*/
+
+	{
+		int mprv;
+		u_char * hl, * hd;
+		u_char * el, * ed;
+		u_char haddr[DKIM_MAXHEADER + 1];
+		u_char eaddr[MAXADDRESS + 1];
+
+		if (sender != NULL)
+			h = sender;
+		else
+			h = from;
+
+		strlcpy((char *) haddr, h->hdr_val, sizeof(haddr));
+		strlcpy((char *) eaddr, (char *) ctx->mctx_envfrom, sizeof(eaddr));
+
+		mprv = dkim_mail_parse(haddr, &hl, &hd);
+		if (!(mprv == 0 && hl != NULL && hd != NULL))
+			return FALSE;
+		mprv = dkim_mail_parse(eaddr, &el, &ed);
+		if (!(mprv == 0 && el != NULL && ed != NULL))
+			return FALSE;
+
+		if (strcasecmp((char *) hl, (char *) el) != 0)
+			return FALSE;
+		if (strcasecmp((char *) hd, (char *) ed) != 0)
+			return FALSE;
+	}
+
+	return TRUE;
+
+#undef CCC
+#undef III
+}
 
 /*
 **  END private section
@@ -12190,15 +12420,18 @@ mlfi_envrcpt(SMFICTX *ctx, char **envrcpt)
 #endif /* USE_LUA */
 	   )
 	{
-		char *copy;
 		struct addrlist *a;
 		char addr[MAXADDRESS + 1];
+		size_t addrlen;
+		size_t allocsz;
+		char * p;
 
 		strlcpy(addr, envrcpt[0], sizeof addr);
 		dkimf_stripbrackets(addr);
 
-		copy = strdup(addr);
-		if (copy == NULL)
+		addrlen = strlen(addr);
+		allocsz = sizeof(struct addrlist) + addrlen + 1;
+		if ((a = malloc(allocsz)) == NULL)
 		{
 			if (conf->conf_dolog)
 			{
@@ -12210,22 +12443,13 @@ mlfi_envrcpt(SMFICTX *ctx, char **envrcpt)
 			return SMFIS_TEMPFAIL;
 		}
 
-		a = (struct addrlist *) malloc(sizeof(struct addrlist));
-		if (a == NULL)
-		{
-			if (conf->conf_dolog)
-			{
-				syslog(LOG_ERR,
-				       "message requeueing (internal error)");
-			}
+		p = &(a->a_data[0]);
 
-			free(copy);
-			dkimf_cleanup(ctx);
-			return SMFIS_TEMPFAIL;
-		}
+		strncpy(p, addr, addrlen);
+		p[addrlen] = '\0';
+		a->a_addr = p;
 
 		a->a_next = dfc->mctx_rcptlist;
-		a->a_addr = copy;
 
 		dfc->mctx_rcptlist = a;
 	}
@@ -12252,11 +12476,16 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 {
 #ifdef _FFR_REPLACE_RULES
 	_Bool dorepl = FALSE;
+	struct dkimf_dstring *tmpstr = NULL;
 #endif /* _FFR_REPLACE_RULES */
 	msgctx dfc;
 	connctx cc;
 	Header newhdr;
 	struct dkimf_config *conf;
+	size_t namelen;
+	size_t bodylen;
+	size_t allocsz;
+	char * p;
 
 	assert(ctx != NULL);
 	assert(headerf != NULL);
@@ -12268,9 +12497,13 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 	assert(dfc != NULL);
 	conf = cc->cctx_config;
 
+	namelen = strlen(headerf);
+	bodylen = strlen(headerv);
+
+#if defined(MAXIMUM_HEADERS)
 	/* check for too much header data */
 	if (conf->conf_maxhdrsz > 0 &&
-	    dfc->mctx_hdrbytes + strlen(headerf) + strlen(headerv) + 2 > conf->conf_maxhdrsz)
+	    dfc->mctx_hdrbytes + namelen + bodylen + 2 > conf->conf_maxhdrsz)
 	{
 		if (conf->conf_dolog)
 			syslog(LOG_NOTICE, "too much header data");
@@ -12279,6 +12512,7 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 		                        conf->conf_handling.hndl_security,
 		                        NULL);
 	}
+#endif /* MAXIMUM_HEADERS */
 
 	/*
 	**  Completely ignore a field name containing a semicolon; this is
@@ -12296,29 +12530,15 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 		return SMFIS_CONTINUE;
 	}
 
-	newhdr = (Header) malloc(sizeof(struct Header));
-	if (newhdr == NULL)
-	{
-		if (conf->conf_dolog)
-			syslog(LOG_ERR, "malloc(): %s", strerror(errno));
-
-		dkimf_cleanup(ctx);
-		return SMFIS_TEMPFAIL;
-	}
-
 #ifdef _FFR_REPUTATION
 # ifdef USE_GNUTLS
-	(void) gnutls_hash(dfc->mctx_hash, headerf, strlen(headerf));
-	(void) gnutls_hash(dfc->mctx_hash, headerv, strlen(headerv));
+	(void) gnutls_hash(dfc->mctx_hash, headerf, namelen);
+	(void) gnutls_hash(dfc->mctx_hash, headerv, bodylen);
 # else /* USE_GNUTLS */
-	SHA1_Update(&dfc->mctx_hash, headerf, strlen(headerf));
-	SHA1_Update(&dfc->mctx_hash, headerv, strlen(headerv));
+	SHA1_Update(&dfc->mctx_hash, headerf, namelen);
+	SHA1_Update(&dfc->mctx_hash, headerv, bodylen);
 # endif /* USE_GNUTLS */
 #endif /* _FFR_REPUTATION */
-
-	(void) memset(newhdr, '\0', sizeof(struct Header));
-
-	newhdr->hdr_hdr = strdup(headerf);
 
 	if (!cc->cctx_noleadspc)
 	{
@@ -12346,13 +12566,12 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 		**  it).
 		*/
 
-		char *p;
-
 		p = headerv;
 		while (isascii(*p) && isspace(*p))
 			p++;
 
 		headerv = p;
+		bodylen = strlen(p);
 	}
 
 #ifdef _FFR_REPLACE_RULES
@@ -12373,9 +12592,6 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 			if (conf->conf_dolog)
 				syslog(LOG_ERR, "dkimf_db_get() failed");
 
-			TRYFREE(newhdr->hdr_hdr);
-			free(newhdr);
-
 			return SMFIS_TEMPFAIL;
 		}
 
@@ -12387,7 +12603,6 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 		int status;
 		regmatch_t match;
 		char *str;
-		struct dkimf_dstring *tmpstr;
 		struct dkimf_dstring *tmphdr = NULL;
 		struct replace *rep;
 
@@ -12396,11 +12611,7 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 			if (conf->conf_dolog)
 				syslog(LOG_ERR, "dkimf_dstring_new() failed");
 
-			TRYFREE(newhdr->hdr_hdr);
-			free(newhdr);
-
 			dkimf_cleanup(ctx);
-
 			return SMFIS_TEMPFAIL;
 		}
 
@@ -12411,11 +12622,8 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 				syslog(LOG_ERR, "dkimf_dstring_new() failed");
 
 			dkimf_dstring_free(tmpstr);
-			TRYFREE(newhdr->hdr_hdr);
-			free(newhdr);
 
 			dkimf_cleanup(ctx);
-
 			return SMFIS_TEMPFAIL;
 		}
 
@@ -12445,11 +12653,9 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 					}
 
 					dkimf_dstring_free(tmpstr);
-					TRYFREE(newhdr->hdr_hdr);
-					free(newhdr);
 					dkimf_dstring_free(tmphdr);
-					dkimf_cleanup(ctx);
 
+					dkimf_cleanup(ctx);
 					return SMFIS_TEMPFAIL;
 				}
 
@@ -12468,30 +12674,44 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 
 		dkimf_dstring_free(tmphdr);
 
-		newhdr->hdr_val = strdup((char *) dkimf_dstring_get(tmpstr));
-		dkimf_dstring_free(tmpstr);
+		headerv = (char *) dkimf_dstring_get(tmpstr);
+		bodylen = dkimf_dstring_len(tmpstr);
 	}
-#else /* _FFR_REPLACE_RULES */
-	newhdr->hdr_val = strdup(headerv);
-#endif /* !_FFR_REPLACE_RULES */
+#endif /* _FFR_REPLACE_RULES */
 
-	newhdr->hdr_next = NULL;
-	newhdr->hdr_prev = dfc->mctx_hqtail;
-
-	if (newhdr->hdr_hdr == NULL || newhdr->hdr_val == NULL)
+	allocsz = sizeof(struct Header) + namelen + 1 + bodylen + 1;
+	if ((newhdr = malloc(allocsz)) == NULL)
 	{
 		if (conf->conf_dolog)
 			syslog(LOG_ERR, "malloc(): %s", strerror(errno));
 
-		TRYFREE(newhdr->hdr_hdr);
-		TRYFREE(newhdr->hdr_val);
-		TRYFREE(newhdr);
 		dkimf_cleanup(ctx);
 		return SMFIS_TEMPFAIL;
 	}
 
-	dfc->mctx_hdrbytes += strlen(newhdr->hdr_hdr) + 1;
-	dfc->mctx_hdrbytes += strlen(newhdr->hdr_val) + 1;
+	p = &(newhdr->hdr_data[0]);
+
+	strncpy(p, headerf, namelen);
+	p[namelen] = '\0';
+	newhdr->hdr_hdr = p;
+	p = p + namelen + 1;
+
+	strncpy(p, headerv, bodylen);
+	p[bodylen] = '\0';
+	newhdr->hdr_val = p;
+
+#if defined(_FFR_REPLACE_RULES)
+	if (tmpstr != NULL)
+		dkimf_dstring_free(tmpstr);
+#endif /* _FFR_REPLACE_RULES */
+
+	newhdr->hdr_next = NULL;
+	newhdr->hdr_prev = dfc->mctx_hqtail;
+
+#if defined(MAXIMUM_HEADERS)
+	dfc->mctx_hdrbytes += namelen + 1;
+	dfc->mctx_hdrbytes += bodylen + 1;
+#endif /* MAXIMUM_HEADERS */
 
 	if (dfc->mctx_hqhead == NULL)
 		dfc->mctx_hqhead = newhdr;
@@ -12500,35 +12720,6 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 		dfc->mctx_hqtail->hdr_next = newhdr;
 
 	dfc->mctx_hqtail = newhdr;
-
-	if (strcasecmp(headerf, conf->conf_selectcanonhdr) == 0)
-	{
-		int cc;
-		char *slash;
-
-		slash = strchr(headerv, '/');
-		if (slash != NULL)
-		{
-			*slash = '\0';
-
-			cc = dkim_name_to_code(dkim_canon, headerv);
-			if (cc != -1)
-				dfc->mctx_hdrcanon = (dkim_canon_arg_t) cc;
-			cc = dkim_name_to_code(dkim_canon, slash + 1);
-			if (cc != -1)
-				dfc->mctx_bodycanon = (dkim_canon_arg_t) cc;
-
-			*slash = '/';
-		}
-		else
-		{
-			cc = dkim_name_to_code(dkim_canon, headerv);
-			if (cc != -1)
-				dfc->mctx_hdrcanon = (dkim_canon_arg_t) cc;
-		}
-
-		/* XXX -- eat this header? */
-	}
 
 	return SMFIS_CONTINUE;
 }
@@ -12601,6 +12792,17 @@ mlfi_eoh(SMFICTX *ctx)
 	if (AS_SIGNER(conf))
 	{
 #endif /* STRICT_MODE */
+
+	if (!cb8_npr(dfc))
+	{
+		struct rcodes rcs;
+		const char * lmsg = "Nachrichtenprüfung fehlgeschlagen";
+		rcs.p = "550";
+		rcs.t = "451";
+		rcs.x = "X.0.0";
+
+		return dkimf_svcstatus(ctx, conf, lmsg, rcs, mlfmsg);
+	}
 
 	CLEAR(addr);
 
@@ -13516,6 +13718,8 @@ mlfi_eoh(SMFICTX *ctx)
 		u_char *selector;
 		struct signreq *sr;
 		dkim_sigkey_t keydata;
+		dkim_canon_arg_t hdrcanon = conf->conf_hdrcanon;
+		dkim_canon_arg_t bdycanon = conf->conf_bodycanon;
 #if defined(_FFR_IDENTITY_HEADER)
 		_Bool setidentity = FALSE;
 #if DKIM_LIBFEATURE(DEEP_ARGUMENT_COPIES)
@@ -13596,6 +13800,42 @@ mlfi_eoh(SMFICTX *ctx)
 		}
 #endif /* _FFR_IDENTITY_HEADER */
 
+#if defined(CANONICALIZATION_HEADER)
+		if (conf->conf_selectcanonhdr != NULL)
+		{
+			hdr = dkimf_findheader(dfc, conf->conf_selectcanonhdr, 0);
+			if (hdr != NULL)
+			{
+				int cc;
+				char * slash;
+				/* strlen("relaxed/relaxed") + 1 */
+				char body[15 + 1];
+
+				strlcpy(body, hdr->hdr_val, sizeof(body));
+				slash = strchr(body, '/');
+				if (slash != NULL)
+				{
+					*slash = '\0';
+
+					cc = dkim_name_to_code(dkim_canon, body);
+					if (cc != -1)
+						hdrcanon = (dkim_canon_arg_t) cc;
+					cc = dkim_name_to_code(dkim_canon, slash + 1);
+					if (cc != -1)
+						bdycanon = (dkim_canon_arg_t) cc;
+				}
+				else
+				{
+					cc = dkim_name_to_code(dkim_canon, body);
+					if (cc != -1)
+						hdrcanon = (dkim_canon_arg_t) cc;
+				}
+
+				/* XXX -- eat this header? */
+			}
+		}
+#endif /* CANONICALIZATION_HEADER */
+
 #ifdef _FFR_ATPS
 		if (conf->conf_atpsdb != NULL)
 		{
@@ -13650,8 +13890,8 @@ mlfi_eoh(SMFICTX *ctx)
 			                         dfc->mctx_jobid,
 			                         NULL, keydata, selector,
 			                         sdomain,
-			                         dfc->mctx_hdrcanon,
-			                         dfc->mctx_bodycanon,
+			                         hdrcanon,
+			                         bdycanon,
 #if defined(CB8_AUTOMATIC_SIGNALG_SELECTION)
 			                         sr->srq_hashalg,
 #else /* CB8_AUTOMATIC_SIGNALG_SELECTION */
@@ -13748,7 +13988,9 @@ mlfi_eoh(SMFICTX *ctx)
 			if (conf->conf_conditionaldb)
 			{
 				status = dkimf_check_conditional(dfc, conf,
-				                                 sr, adomain);
+				                                 sr, adomain,
+				                                 hdrcanon,
+				                                 bdycanon);
 				if (status != DKIM_STAT_OK)
 				{
 					return dkimf_libstatus(ctx, NULL,
@@ -13760,6 +14002,7 @@ mlfi_eoh(SMFICTX *ctx)
 		}
 	}
 
+#if defined(REQUIRED_HEADERS)
 	/* if requested, verify RFC5322-required headers (RFC5322 3.6) */
 	if (conf->conf_reqhdrs)
 	{
@@ -13769,6 +14012,10 @@ mlfi_eoh(SMFICTX *ctx)
 		if (dkimf_findheader(dfc, "From", 0) == NULL ||
 		    dkimf_findheader(dfc, "From", 1) != NULL)
 			msg = "message does not have exactly one From field";
+
+		/* no more than one Sender: */
+		if (dkimf_findheader(dfc, "Sender", 1) != NULL)
+			msg = "message has multiple Sender fields";
 
 		/* exactly one Date: */
 		if (dkimf_findheader(dfc, "Date", 0) == NULL ||
@@ -13841,6 +14088,7 @@ mlfi_eoh(SMFICTX *ctx)
 #endif /* !STRICT_MODE */
 		}
 	}
+#endif /* REQUIRED_HEADERS */
 
 #ifdef _FFR_VBR
 	/* establish a VBR handle */
@@ -14032,7 +14280,7 @@ mlfi_eoh(SMFICTX *ctx)
 				}
 
 				/* add it to header set so it gets signed */
-				newhdr = (Header) malloc(sizeof(struct Header));
+				newhdr = malloc(sizeof(struct Header));
 				if (newhdr == NULL)
 				{
 					if (conf->conf_dolog)
@@ -14045,22 +14293,8 @@ mlfi_eoh(SMFICTX *ctx)
 					}
 				}
 
-				(void) memset(newhdr, '\0',
-				              sizeof(struct Header));
-
-				newhdr->hdr_hdr = strdup(VBR_INFOHEADER);
-				newhdr->hdr_val = strdup(header);
-
-				if (newhdr->hdr_hdr == NULL ||
-				    newhdr->hdr_val == NULL)
-				{
-					syslog(LOG_ERR, "%s: strdup(): %s",
-					       dfc->mctx_jobid,
-					       strerror(errno));
-					TRYFREE(newhdr->hdr_hdr);
-					dkimf_cleanup(ctx);
-					return SMFIS_TEMPFAIL;
-				}
+				newhdr->hdr_hdr = VBR_INFOHEADER;
+				newhdr->hdr_val = dfc->mctx_vbrinfo;
 
 				newhdr->hdr_next = NULL;
 				newhdr->hdr_prev = dfc->mctx_hqtail;
@@ -16448,7 +16682,9 @@ usage(void)
 #if defined(PRODUCTION_TESTS)
 		        "\t-Q          \tquery test mode\n"
 #endif /* PRODUCTION_TESTS */
+#if defined(REQUIRED_HEADERS)
 	                "\t-r          \trequire basic RFC5322 header compliance\n"
+#endif /* REQUIRED_HEADERS */
 #if defined(SINGLE_SIGNING)
 	                "\t-s selector \tselector to use when signing\n"
 #endif /* SINGLE_SIGNING */
@@ -16712,9 +16948,11 @@ main(int argc, char **argv)
 			break;
 #endif /* PRODUCTION_TESTS */
 
+#if defined(REQUIRED_HEADERS)
 		  case 'r':
 			curconf->conf_reqhdrs = TRUE;
 			break;
+#endif /* REQUIRED_HEADERS */
 
 #if defined(SINGLE_SIGNING)
 		  case 's':

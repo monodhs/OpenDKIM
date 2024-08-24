@@ -104,6 +104,18 @@ static const char * dsflist[] =
 	"REDIRECT_FAILURES",
 #endif /* !REDIRECT_FAILURES */
 
+#if !defined(MAXIMUM_HEADERS)
+	"MAXIMUM_HEADERS",
+#endif /* !MAXIMUM_HEADERS */
+
+#if !defined(CANONICALIZATION_HEADER)
+	"CANONICALIZATION_HEADER",
+#endif /* !CANONICALIZATION_HEADER */
+
+#if !defined(REQUIRED_HEADERS)
+	"REQUIRED_HEADERS",
+#endif /* !REQUIRED_HEADERS */
+
 	NULL
 };
 

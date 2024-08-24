@@ -49,7 +49,9 @@
 #define	DEFCONFFILE	CONFIG_BASE "/opendkim.conf"
 #define	DEFFLOWDATATTL	86400
 #define	DEFINTERNAL	"csl:127.0.0.1,::1"
+#if defined(MAXIMUM_HEADERS)
 #define	DEFMAXHDRSZ	65536
+#endif /* MAXIMUM_HEADERS */
 #define	DEFMAXVERIFY	3
 #define	DEFTIMEOUT	5
 #define	HOSTUNKNOWN	"unknown-host"
@@ -86,7 +88,9 @@
 #define ORCPTHEADER	"Original-Recipient"
 
 #define	SWHEADERNAME	"DKIM-Filter"
+#if defined(CANONICALIZATION_HEADER)
 #define	SELECTCANONHDR	"Canonicalization"
+#endif /* CANONICALIZATION_HEADER */
 
 #ifdef _FFR_VBR
 # define VBRTYPEHEADER	"VBR-Type"
@@ -115,6 +119,7 @@ struct Header
 	char *		hdr_val;
 	struct Header *	hdr_next;
 	struct Header *	hdr_prev;
+	char		hdr_data[];
 };
 
 /*

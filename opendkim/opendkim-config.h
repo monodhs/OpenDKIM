@@ -133,7 +133,9 @@ struct configdef dkimf_config[] =
 	{ "MalformedAddressReplyText",	CONFIG_TYPE_STRING,	FALSE },
 	{ "MalformedMessageReplyText",	CONFIG_TYPE_STRING,	FALSE },
 #endif /* STRICT_MODE */
+#if defined(MAXIMUM_HEADERS)
 	{ "MaximumHeaders",		CONFIG_TYPE_INTEGER,	FALSE },
+#endif /* MAXIMUM_HEADERS */
 	{ "MaximumSignedBytes",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "MaximumSignaturesToVerify",	CONFIG_TYPE_INTEGER,	FALSE },
 #if defined(LOCAL_SIGNING_CRITERIA)
@@ -235,7 +237,9 @@ struct configdef dkimf_config[] =
 #if defined(DEBUG_FEATURES)
 	{ "RequestReports",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #endif /* DEBUG_FEATURES */
+#if defined(REQUIRED_HEADERS)
 	{ "RequiredHeaders",		CONFIG_TYPE_BOOLEAN,	FALSE },
+#endif /* REQUIRED_HEADERS */
 #if defined(REQUIRE_SAFE_KEYS)
 	{ "RequireSafeKeys",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #endif /* REQUIRE_SAFE_KEYS */
@@ -251,7 +255,9 @@ struct configdef dkimf_config[] =
 #if defined(SINGLE_SIGNING)
 	{ "Selector",			CONFIG_TYPE_STRING,	FALSE },
 #endif /* SINGLE_SIGNING */
+#if defined(CANONICALIZATION_HEADER)
 	{ "SelectCanonicalizationHeader", CONFIG_TYPE_STRING,	FALSE },
+#endif /* CANONICALIZATION_HEADER */
 	{ "SenderHeaders",		CONFIG_TYPE_STRING,	FALSE },
 #ifdef _FFR_SENDER_MACRO
 	{ "SenderMacro",		CONFIG_TYPE_STRING,	FALSE },

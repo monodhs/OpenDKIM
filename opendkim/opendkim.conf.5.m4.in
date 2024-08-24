@@ -648,6 +648,7 @@ and begins feeding an unbounded number of header fields of arbitrary
 size; since the filter keeps a cache of these, the attacker could
 cause the filter to allocate an unspecified amount of memory.  The
 default is 65536; a value of 0 removes the limit.
+@MAXIMUM_HEADERS_MANNOTICE@
 
 .TP
 .I MaximumSignaturesToVerify (integer)
@@ -920,6 +921,7 @@ that may be a security concern.  Possible values are the same as those for
 .I On-BadSignature.
 The default is
 .I tempfail.
+@MAXIMUM_HEADERS_MANNOTICE@
 
 actionparam([[ServiceException]],
 [[after all attempts at determining whether
@@ -1152,6 +1154,7 @@ parameter.
 @STRICT_MODE_MANELSE@
 rejected.
 @STRICT_MODE_MANENDIF@
+@REQUIRED_HEADERS_MANNOTICE@
 
 .TP
 .I RequireSafeKeys (boolean)
@@ -1216,6 +1219,7 @@ Defines a header field name which, if present, adjusts which canonicalization
 will be used to generate an outgoing signature.  Overrides the
 .I Canonicalization
 setting if the header field is present.  The default is "X-Canonicalization".
+@CANONICALIZATION_HEADER_MANNOTICE@
 
 .TP
 .I Selector (string)

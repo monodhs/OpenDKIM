@@ -35,7 +35,9 @@ include(MANPAGE_MACROS)dnl
 @PRODUCTION_TESTS_MANIF@
 [\-Q]
 @PRODUCTION_TESTS_MANENDIF@
+@REQUIRED_HEADERS_MANIF@
 [\-r]
+@REQUIRED_HEADERS_MANENDIF@
 @SINGLE_SIGNING_MANIF@
 [\-s selector]
 @SINGLE_SIGNING_MANENDIF@
@@ -416,10 +418,12 @@ containing a database description to be opened and one containing a string
 of the form "q/n" where "q" is the query to be performed and "n" is the
 number of fields to be retrieved.
 @PRODUCTION_TESTS_MANENDIF@
+@REQUIRED_HEADERS_MANIF@
 .TP
 .I \-r
 Checks all messages for compliance with RFC5322 header count requirements.
 Non-compliant messages are rejected.
+@REQUIRED_HEADERS_MANENDIF@
 @SINGLE_SIGNING_MANIF@
 .TP
 .I \-s selector
