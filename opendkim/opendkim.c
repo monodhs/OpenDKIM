@@ -284,7 +284,6 @@ struct dkimf_config
 	_Bool		conf_keepar;		/* keep our ARs? */
 	_Bool		conf_dolog;		/* syslog interesting stuff? */
 	_Bool		conf_dolog_success;	/* syslog successes too? */
-	_Bool		conf_milterv2;		/* using milter v2? */
 #if defined(FIX_CRLF)
 	_Bool		conf_fixcrlf;		/* fix bare CRs and LFs? */
 #endif /* FIX_CRLF */
@@ -606,7 +605,7 @@ struct msgctx
 #if defined(MAXIMUM_HEADERS)
 	int		mctx_hdrbytes;		/* header space allocated */
 #endif /* MAXIMUM_HEADERS */
-	u_char *	mctx_jobid;		/* job ID */
+	const char *	mctx_jobid;		/* job ID */
 	DKIM *		mctx_dkimv;		/* verification handle */
 #ifdef _FFR_VBR
 	VBR *		mctx_vbr;		/* VBR handle */
@@ -665,13 +664,11 @@ struct msgctx
 typedef struct connctx * connctx;
 struct connctx
 {
-	_Bool		cctx_milterv2;		/* milter v2 available */
-	_Bool		cctx_noleadspc;		/* no leading spaces */
 	char		cctx_host[DKIM_MAXHOSTNAMELEN + 1];
 						/* hostname */
 	struct sockaddr_storage	cctx_ip;	/* IP info */
 	struct dkimf_config * cctx_config;	/* configuration in use */
-	struct msgctx *	cctx_msg;		/* message context */
+	struct msgctx	cctx_msg;		/* message context */
 };
 
 /*
@@ -839,7 +836,6 @@ void *dkim_debug_realloc __P((void *, size_t, char *, int));
 # define realloc(x,y)	dkimf_debug_realloc((x), (y), __FILE__, __LINE__)
 #endif /* LEAK_TRACKING */
 
-sfsistat mlfi_abort __P((SMFICTX *));
 sfsistat mlfi_body __P((SMFICTX *, u_char *, size_t));
 sfsistat mlfi_close __P((SMFICTX *));
 sfsistat mlfi_connect __P((SMFICTX *, char *, _SOCK_ADDR *));
@@ -848,10 +844,6 @@ sfsistat mlfi_envrcpt __P((SMFICTX *, char **));
 sfsistat mlfi_eoh __P((SMFICTX *));
 sfsistat mlfi_eom __P((SMFICTX *));
 sfsistat mlfi_header __P((SMFICTX *, char *, char *));
-sfsistat mlfi_negotiate __P((SMFICTX *, unsigned long, unsigned long,
-                                        unsigned long, unsigned long,
-                                        unsigned long *, unsigned long *,
-                                        unsigned long *, unsigned long *));
 
 static int dkimf_add_signrequest __P((struct msgctx *, DKIMF_DB,
                                       const char *, const u_char *,
@@ -864,21 +856,20 @@ static int dkimf_apply_signtable __P((struct msgctx *, DKIMF_DB, DKIMF_DB,
                                       const u_char *, const u_char *, char *,
                                       size_t, _Bool));
 sfsistat dkimf_chgheader __P((SMFICTX *, char *, int, char *));
-static void dkimf_cleanup __P((SMFICTX *));
+static void dkimf_cleanup __P((struct msgctx *));
 static void dkimf_config_reload __P((void));
 #if defined(REDIRECT_FAILURES) || defined(USE_LUA)
 sfsistat dkimf_delrcpt __P((SMFICTX *, char *));
 #endif /* REDIRECT_FAILURES || USE_LUA */
 static Header dkimf_findheader __P((msgctx, char *, int));
 void *dkimf_getpriv __P((SMFICTX *));
-char *dkimf_getsymval __P((SMFICTX *, char *));
+const char *dkimf_getsymval __P((SMFICTX *, const char *));
 sfsistat dkimf_insheader __P((SMFICTX *, int, char *, char *));
 sfsistat dkimf_quarantine __P((SMFICTX *, char *));
 void dkimf_sendprogress __P((const void *));
-sfsistat dkimf_setpriv __P((SMFICTX *, void *));
 sfsistat dkimf_setreply __P((SMFICTX *, char *, char *, char *));
 #if defined(DEBUG_FEATURES)
-static void dkimf_sigreport __P((connctx, struct dkimf_config *, char *));
+static void dkimf_sigreport __P((connctx, struct dkimf_config *, const char *));
 #endif /* DEBUG_FEATURES */
 
 /* GLOBALS */
@@ -900,7 +891,6 @@ int diesig;					/* signal to distribute */
 time_t cache_lastlog;				/* last cache stats logged */
 #endif /* QUERY_CACHE */
 char *progname;					/* program name */
-char *sock;					/* listening socket */
 char *conffile;					/* configuration file */
 struct dkimf_config *curconf;			/* current configuration */
 #ifdef POPAUTH
@@ -925,13 +915,18 @@ const pthread_mutexattr_t * const mutex_attrs = &pma;
 
 /* MACROS */
 #define	JOBID(x)	((x) == NULL ? JOBIDUNKNOWN : (char *) (x))
-#define	TRYFREE(x)	do { \
-				if ((x) != NULL) \
-				{ \
-					free(x); \
-					(x) = NULL; \
-				} \
+#define XYZ(x, f, m)	do {				\
+				if ((x) != NULL)	\
+				{			\
+					f(x);		\
+					m(x);		\
+				}			\
 			} while (0)
+#define CLR(x)		(x) = NULL
+#define NOP(x)
+#define CNDFRCL(x)	XYZ(x, free, CLR)
+#define CNDRLSE(x, f)	XYZ(x, f, NOP)
+#define CNDRLCL(x, f)	XYZ(x, f, CLR)
 #if defined(LOCAL_SIGNING_CRITERIA)
 #define	DKIMF_EOHMACROS	"i {daemon_name} {auth_type}"
 #else /* LOCAL_SIGNING_CRITERIA */
@@ -944,6 +939,18 @@ const pthread_mutexattr_t * const mutex_attrs = &pma;
 #define IS_PHLDR(a)	((a)[0] == '%' && (a)[1] == '\0')
 #define CLEAR(a)	((a)[0] = '\0')
 
+#define dkimf_cc_dfc(s, c, m)		\
+	c = dkimf_getpriv(s);		\
+	m = &(c->cctx_msg)
+
+#define dkimf_cc_conf(s, c, n)		\
+	c = dkimf_getpriv(s);		\
+	n = c->cctx_config
+
+#define dkimf_cc_dfc_conf(s, c, m, n)	\
+	dkimf_cc_dfc(s, c, m);		\
+	n = c->cctx_config
+
 
 
 /*
@@ -951,40 +958,14 @@ const pthread_mutexattr_t * const mutex_attrs = &pma;
 **  BEGIN private section
 */
 
-#ifndef HAVE_SMFI_INSHEADER
-/*
-**  SMFI_INSHEADER -- stub for smfi_insheader() which didn't exist before
-**                    sendmail 8.13.0
-**
-**  Parameters:
-**  	ctx -- milter context
-**  	idx -- insertion index
-**  	hname -- header name
-**  	hvalue -- header value
-**
-**  Return value:
-**  	An sfsistat.
-*/
-
-sfsistat 
-smfi_insheader(SMFICTX *ctx, int idx, char *hname, char *hvalue)
-{
-	assert(ctx != NULL);
-	assert(hname != NULL);
-	assert(hvalue != NULL);
-
-	return smfi_addheader(ctx, hname, hvalue);
-}
-#endif /* ! HAVE_SMFI_INSHEADER */
-
 /*
 **  DKIMF_GETPRIV -- wrapper for smfi_getpriv()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **
 **  Return value:
-**  	The stored private pointer, or NULL.
+**  	The stored private pointer.
 */
 
 void *
@@ -1001,33 +982,10 @@ dkimf_getpriv(SMFICTX *ctx)
 }
 
 /*
-**  DKIMF_SETPRIV -- wrapper for smfi_setpriv()
-**
-**  Parameters:
-**  	ctx -- milter (or test) context
-**
-**  Return value:
-**  	An sfsistat.
-*/
-
-sfsistat
-dkimf_setpriv(SMFICTX *ctx, void *ptr)
-{
-	assert(ctx != NULL);
-
-#if defined(PRODUCTION_TESTS)
-	if (testmode)
-		return dkimf_test_setpriv((void *) ctx, ptr);
-	else
-#endif /* PRODUCTION_TESTS */
-		return smfi_setpriv(ctx, ptr);
-}
-
-/*
 **  DKIMF_INSHEADER -- wrapper for smfi_insheader()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **  	idx -- index at which to insert
 **  	hname -- header name
 **  	hvalue -- header value
@@ -1048,18 +1006,14 @@ dkimf_insheader(SMFICTX *ctx, int idx, char *hname, char *hvalue)
 		return dkimf_test_insheader(ctx, idx, hname, hvalue);
 	else
 #endif /* PRODUCTION_TESTS */
-#ifdef HAVE_SMFI_INSHEADER
 		return smfi_insheader(ctx, idx, hname, hvalue);
-#else /* HAVE_SMFI_INSHEADER */
-		return smfi_addheader(ctx, hname, hvalue);
-#endif /* HAVE_SMFI_INSHEADER */
 }
 
 /*
 **  DKIMF_CHGHEADER -- wrapper for smfi_chgheader()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **  	hname -- header name
 **  	idx -- index of header to be changed
 **  	hvalue -- header value
@@ -1086,7 +1040,7 @@ dkimf_chgheader(SMFICTX *ctx, char *hname, int idx, char *hvalue)
 **  DKIMF_QUARANTINE -- wrapper for smfi_quarantine()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **  	reason -- quarantine reason
 **
 **  Return value:
@@ -1101,20 +1055,16 @@ dkimf_quarantine(SMFICTX *ctx, char *reason)
 #if defined(PRODUCTION_TESTS)
 	if (testmode)
 		return dkimf_test_quarantine(ctx, reason);
-#endif /* PRODUCTION_TESTS */
-#ifdef SMFIF_QUARANTINE
-#if defined(PRODUCTION_TESTS)
 	else
 #endif /* PRODUCTION_TESTS */
 		return smfi_quarantine(ctx, reason);
-#endif /* SMFIF_QUARANTINE */
 }
 
 /*
 **  DKIMF_ADDHEADER -- wrapper for smfi_addheader()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **  	hname -- header name
 **  	hvalue -- header value
 **
@@ -1143,7 +1093,7 @@ dkimf_addheader(SMFICTX *ctx, char *hname, char *hvalue)
 **  DKIMF_ADDRCPT -- wrapper for smfi_addrcpt()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **  	addr -- address to add
 **
 **  Return value:
@@ -1168,7 +1118,7 @@ dkimf_addrcpt(SMFICTX *ctx, char *addr)
 **  DKIMF_DELRCPT -- wrapper for smfi_delrcpt()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **  	addr -- address to delete
 **
 **  Return value:
@@ -1195,7 +1145,7 @@ dkimf_delrcpt(SMFICTX *ctx, char *addr)
 **  DKIMF_SETREPLY -- wrapper for smfi_setreply()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **  	rcode -- SMTP reply code
 **  	xcode -- SMTP enhanced status code
 **  	replytxt -- reply text
@@ -1221,15 +1171,15 @@ dkimf_setreply(SMFICTX *ctx, char *rcode, char *xcode, char *replytxt)
 **  DKIMF_GETSYMVAL -- wrapper for smfi_getsymval()
 **
 **  Parameters:
-**  	ctx -- milter (or test) context
+**  	ctx -- libmilter (or test) context
 **  	sym -- symbol to retrieve
 **
 **  Return value:
 **  	Pointer to the value of the requested MTA symbol.
 */
 
-char *
-dkimf_getsymval(SMFICTX *ctx, char *sym)
+const char *
+dkimf_getsymval(SMFICTX *ctx, const char *sym)
 {
 	assert(ctx != NULL);
 	assert(sym != NULL);
@@ -1290,7 +1240,6 @@ dkimf_getsymval(SMFICTX *ctx, char *sym)
 void
 dkimf_import_globals(void *p, lua_State *l)
 {
-	SMFICTX *ctx;
 	struct connctx *cc;
 	struct msgctx *mctx;
 	struct lua_global *lg;
@@ -1298,9 +1247,7 @@ dkimf_import_globals(void *p, lua_State *l)
 	if (p == NULL)
 		return;
 
-	ctx = (SMFICTX *) p;
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	mctx = cc->cctx_msg;
+	dkimf_cc_dfc((SMFICTX * )p, cc, mctx);
 
 	lg = mctx->mctx_luaglobalh;
 	while (lg != NULL)
@@ -1395,9 +1342,7 @@ dkimf_xs_signfor(lua_State *l)
 	if (top == 3)
 		multi = lua_toboolean(l, 3);
 
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	msg = cc->cctx_msg;
-	conf = cc->cctx_config;
+	dkimf_cc_dfc_conf(ctx, cc, msg, conf);
 
 #if defined(STRICT_MODE)
 	if (!AS_SIGNER(conf))
@@ -1502,8 +1447,7 @@ dkimf_xs_export(lua_State *l)
 		lua_pop(l, top);
 		return 0;
 	}
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	msg = cc->cctx_msg;
+	dkimf_cc_dfc(ctx, cc, msg);
 
 	for (c = 2; c < top; c += 2)
 	{
@@ -1776,8 +1720,7 @@ dkimf_xs_xtag(lua_State *l)
 		struct msgctx *dfc;
 		struct signreq *sr;
 
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 
 		for (sr = dfc->mctx_srhead; sr != NULL; sr = sr->srq_next)
 		{
@@ -1940,8 +1883,7 @@ dkimf_xs_querydomain(lua_State *l)
 	}
 	else
 	{
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 		lua_pushstring(l, (char *) dfc->mctx_ldomain);
 	}
 
@@ -2125,8 +2067,7 @@ dkimf_xs_spam(lua_State *l)
 	ctx = (SMFICTX *) lua_touserdata(l, 1);
 	if (ctx != NULL)
 	{
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 
 		dfc->mctx_spam = TRUE;
 	}
@@ -2229,9 +2170,7 @@ dkimf_xs_requestsig(lua_State *l)
 	{
 		int c;
 
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
-		conf = cc->cctx_config;
+		dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
 #if defined(SINGLE_SIGNING)
 		for (c = 2; c <= top; c++)
@@ -2443,9 +2382,7 @@ dkimf_xs_replaceheader(lua_State *l)
 
 	if (ctx != NULL)
 	{
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
-		conf = cc->cctx_config;
+		dkimf_cc_dfc(ctx, cc, dfc);
 	}
 
 	lua_pop(l, 3);
@@ -2469,7 +2406,6 @@ dkimf_xs_replaceheader(lua_State *l)
 	{
 		char *tmp;
 
-		if (ctx != NULL && cc->cctx_noleadspc)
 		{
 			size_t len;
 
@@ -2483,15 +2419,6 @@ dkimf_xs_replaceheader(lua_State *l)
 
 			tmp[0] = ' ';
 			memcpy(&tmp[1], newval, len + 1);
-		}
-		else
-		{
-			tmp = strdup(newval);
-			if (tmp == NULL)
-			{
-				lua_pushnil(l);
-				return 1;
-			}
 		}
 
 		free(hdr->hdr_val);
@@ -2541,8 +2468,7 @@ dkimf_xs_getenvfrom(lua_State *l)
 
 	if (ctx != NULL)
 	{
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 	}
 
 	lua_pop(l, 1);
@@ -2572,7 +2498,6 @@ dkimf_xs_getheader(lua_State *l)
 	SMFICTX *ctx;
 	struct connctx *cc;
 	struct msgctx *dfc;
-	struct dkimf_config *conf;
 	Header hdr;
 
 	assert(l != NULL);
@@ -2597,9 +2522,7 @@ dkimf_xs_getheader(lua_State *l)
 
 	if (ctx != NULL)
 	{
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
-		conf = cc->cctx_config;
+		dkimf_cc_dfc(ctx, cc, dfc);
 	}
 
 	lua_pop(l, 3);
@@ -2735,8 +2658,7 @@ dkimf_xs_internalip(lua_State *l)
 		return 1;
 	}
 
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	conf = cc->cctx_config;
+	dkimf_cc_conf(ctx, cc, conf);
 
 	if (conf->conf_internal == NULL)
 	{
@@ -2920,8 +2842,7 @@ dkimf_xs_dbhandle(lua_State *l)
 		return 1;
 	}
 
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	conf = cc->cctx_config;
+	dkimf_cc_conf(ctx, cc, conf);
 
 	code = (int) lua_tonumber(l, 1);
 	lua_pop(l, 2);
@@ -3037,9 +2958,7 @@ dkimf_xs_rcptcount(lua_State *l)
 		return 1;
 	}
 
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	conf = cc->cctx_config;
-	dfc = cc->cctx_msg;
+	dkimf_cc_dfc(ctx, cc, dfc);
 
 	rcnt = 0;
 	
@@ -3094,9 +3013,8 @@ dkimf_xs_rcpt(lua_State *l)
 		lua_pushstring(l, "dkimf_xs_rcpt");
 		return 1;
 	}
-	
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	dfc = cc->cctx_msg;
+
+	dkimf_cc_dfc(ctx, cc, dfc);
 
 	addr = dfc->mctx_rcptlist;
 	while (rcnt > 0 && addr != NULL)
@@ -3161,8 +3079,7 @@ dkimf_xs_rcptarray(lua_State *l)
 		int idx;
 		struct addrlist *addr;
 
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 
 		for (addr = dfc->mctx_rcptlist, idx = 1;
 		     addr != NULL;
@@ -3269,8 +3186,7 @@ dkimf_xs_setpartial(lua_State *l)
 		struct connctx *cc;
 		struct msgctx *dfc;
 
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 		dfc->mctx_ltag = TRUE;
 	}
 
@@ -3317,8 +3233,7 @@ dkimf_xs_getsigarray(lua_State *l)
 		struct connctx *cc;
 		struct msgctx *dfc;
 
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 
 		if (dfc->mctx_dkimv == NULL)
 		{
@@ -3396,8 +3311,7 @@ dkimf_xs_getsigcount(lua_State *l)
 
 	if (ctx != NULL)
 	{
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 
 		if (dfc->mctx_dkimv == NULL)
 		{
@@ -3472,8 +3386,7 @@ dkimf_xs_getsighandle(lua_State *l)
 		return 1;
 	}
 
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	dfc = cc->cctx_msg;
+	dkimf_cc_dfc(ctx, cc, dfc);
 
 	if (dfc->mctx_dkimv == NULL)
 	{
@@ -3645,8 +3558,8 @@ dkimf_xs_getsigidentity(lua_State *l)
 int
 dkimf_xs_getsymval(lua_State *l)
 {
-	char *name;
-	char *sym;
+	const char *name;
+	const char *sym;
 	SMFICTX *ctx;
 
 	assert(l != NULL);
@@ -3666,7 +3579,7 @@ dkimf_xs_getsymval(lua_State *l)
 	}
 
 	ctx = (SMFICTX *) lua_touserdata(l, 1);
-	name = (char *) lua_tostring(l, 2);
+	name = lua_tostring(l, 2);
 	lua_pop(l, 2);
 
 	if (ctx == NULL)
@@ -3813,13 +3726,13 @@ dkimf_xs_bodylength(lua_State *l)
 	}
 
 	cc = (struct connctx *) dkimf_getpriv(ctx);
-	if (cc->cctx_msg == NULL || cc->cctx_msg->mctx_dkimv == NULL)
+	if (cc->cctx_msg.mctx_dkimv == NULL)
 	{
 		lua_pushnil(l);
 		return 1;
 	}
 
-	status = dkim_sig_getcanonlen(cc->cctx_msg->mctx_dkimv, sig, &body,
+	status = dkim_sig_getcanonlen(cc->cctx_msg.mctx_dkimv, sig, &body,
 	                              NULL, NULL);
 	if (status != DKIM_STAT_OK)
 		lua_pushnil(l);
@@ -3875,13 +3788,13 @@ dkimf_xs_canonlength(lua_State *l)
 	}
 
 	cc = (struct connctx *) dkimf_getpriv(ctx);
-	if (cc->cctx_msg == NULL || cc->cctx_msg->mctx_dkimv == NULL)
+	if (cc->cctx_msg.mctx_dkimv == NULL)
 	{
 		lua_pushnil(l);
 		return 1;
 	}
 
-	status = dkim_sig_getcanonlen(cc->cctx_msg->mctx_dkimv, sig, NULL,
+	status = dkim_sig_getcanonlen(cc->cctx_msg.mctx_dkimv, sig, NULL,
 	                              &cl, NULL);
 	if (status != DKIM_STAT_OK)
 		lua_pushnil(l);
@@ -4080,9 +3993,7 @@ dkimf_xs_delrcpt(lua_State *l)
 		return 1;
 	}
 
-	cc = (struct connctx *) dkimf_getpriv(ctx);
-	conf = cc->cctx_config;
-	dfc = cc->cctx_msg;
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
 	/* see if this is a known recipient */
 	for (a = dfc->mctx_rcptlist; a != NULL; a = a->a_next)
@@ -4280,8 +4191,7 @@ dkimf_xs_setresult(lua_State *l)
 		struct msgctx *dfc;
 		struct connctx *cc;
 
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 
 		dfc->mctx_mresult = mresult;
 		lua_pushnumber(l, 1);
@@ -4340,8 +4250,7 @@ dkimf_xs_statsext(lua_State *l)
 		struct connctx *cc;
 		struct msgctx *dfc;
 
-		cc = (struct connctx *) dkimf_getpriv(ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc(ctx, cc, dfc);
 
 		se = (struct statsext *) malloc(sizeof(struct statsext));
 		if (se == NULL)
@@ -4441,7 +4350,7 @@ dkimf_valid_vbr(struct msgctx *dfc)
 **  Parameters:
 **  	dfc -- filter context
 **  	conf -- configuration handle
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	body -- header field body
 **
 **  Return value:
@@ -5710,9 +5619,7 @@ dkimf_prescreen(DKIM *dkim, DKIM_SIGINFO **sigs, int nsigs)
 	struct dkimf_config *conf;
 
 	ctx = (SMFICTX *) dkim_get_user_context(dkim);
-	cc = (connctx) dkimf_getpriv(ctx);
-	conf = cc->cctx_config;
-	dfc = cc->cctx_msg;
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 #if DKIM_LIBFEATURE(MANAGE_AUTHOR_IDENTIFIERS)
 	adomain = dkim_getdomain(dkim);
 #else /* MANAGE_AUTHOR_IDENTIFIERS */
@@ -6058,10 +5965,7 @@ dkimf_getdkim(void *vp)
 	assert(vp != NULL);
 
 	cc = vp;
-	if (cc->cctx_msg != NULL)
-		return cc->cctx_msg->mctx_dkimv;
-	else
-		return NULL;
+	return cc->cctx_msg.mctx_dkimv;
 }
 
 /*
@@ -6082,10 +5986,7 @@ dkimf_getsrlist(void *vp)
 	assert(vp != NULL);
 
 	cc = vp;
-	if (cc->cctx_msg != NULL)
-		return cc->cctx_msg->mctx_srhead;
-	else
-		return NULL;
+	return cc->cctx_msg.mctx_srhead;
 }
 
 #endif /* PRODUCTION_TESTS */
@@ -6105,7 +6006,7 @@ dkimf_getsrlist(void *vp)
 static void
 dkimf_sighandler(int sig)
 {
-	if (sig == SIGINT || sig == SIGTERM || sig == SIGHUP)
+	if (sig == SIGINT || sig == SIGTERM)
 	{
 		diesig = sig;
 		die = TRUE;
@@ -7035,17 +6936,6 @@ dkimf_config_load(struct config *data, struct dkimf_config *conf,
 		(void) config_get(data, "CaptureUnknownErrors",
 		                  &conf->conf_capture,
 		                  sizeof conf->conf_capture);
-
-#ifndef SMFIF_QUARANTINE
-		if (conf->conf_capture)
-		{
-			strlcpy(err,
-			        "quarantining not supported (required for CaptureUnknownErrors",
-			        errlen);
-
-			return -1;
-		}
-#endif /* SMFIF_QUARANTINE */
 
 		(void) config_get(data, "AllowSHA1Only",
 		                  &conf->conf_allowsha1only,
@@ -9611,7 +9501,7 @@ dkimf_config_reload(void)
 */
 
 static _Bool
-dkimf_checkbldb(DKIMF_DB db, char *to, char *jobid)
+dkimf_checkbldb(DKIMF_DB db, char *to, const char *jobid)
 {
 	int c;
 	_Bool exists = FALSE;
@@ -9728,21 +9618,16 @@ dkimf_sendprogress(const void *ctx)
 		struct connctx *cc;
 		struct msgctx *dfc;
 
-		cc = (struct connctx *) dkimf_getpriv((SMFICTX *) ctx);
-		dfc = cc->cctx_msg;
+		dkimf_cc_dfc((SMFICTX * )ctx, cc, dfc);
 
 		if (dfc->mctx_eom)
 		{
 #if defined(PRODUCTION_TESTS)
 			if (testmode)
 				(void) dkimf_test_progress((SMFICTX *) ctx);
-#endif /* PRODUCTION_TESTS */
-#ifdef HAVE_SMFI_PROGRESS
-#if defined(PRODUCTION_TESTS)
 			else
 #endif /* PRODUCTION_TESTS */
 				(void) smfi_progress((SMFICTX *) ctx);
-#endif /* HAVE_SMFI_PROGRESS */
 		}
 	}
 }
@@ -9751,26 +9636,21 @@ dkimf_sendprogress(const void *ctx)
 **  DKIMF_INITCONTEXT -- initialize filter context
 **
 **  Parameters:
-**  	conf -- pointer to the configuration for this connection
+**  	ctx -- pointer to the message context object
+**  	conf -- pointer to the configuration for this message's connection
 **
 **  Return value:
-**  	A pointer to an allocated and initialized filter context, or NULL
-**  	on failure.
+**  	Nothing.
 **
 **  Side effects:
 **  	Crop circles near Birmingham.
 */
 
-static msgctx
-dkimf_initcontext(struct dkimf_config *conf)
+static void
+dkimf_initcontext(struct msgctx * ctx, struct dkimf_config *conf)
 {
-	msgctx ctx;
-
+	assert(ctx != NULL);
 	assert(conf != NULL);
-
-	ctx = (msgctx) malloc(sizeof(struct msgctx));
-	if (ctx == NULL)
-		return NULL;
 
 	(void) memset(ctx, '\0', sizeof(struct msgctx));
 
@@ -9792,8 +9672,6 @@ dkimf_initcontext(struct dkimf_config *conf)
 	SHA1_Init(&ctx->mctx_hash);
 # endif /* USE_GNUTLS */
 #endif /* _FFR_REPUTATION */
-
-	return ctx;
 }
 
 /*
@@ -9809,7 +9687,7 @@ dkimf_initcontext(struct dkimf_config *conf)
 */
 
 static void
-dkimf_log_ssl_errors(DKIM *dkim, DKIM_SIGINFO *sig, char *jobid)
+dkimf_log_ssl_errors(DKIM *dkim, DKIM_SIGINFO *sig, const char *jobid)
 {
 	const unsigned char *selector;
 	const unsigned char *domain;
@@ -9852,138 +9730,114 @@ dkimf_log_ssl_errors(DKIM *dkim, DKIM_SIGINFO *sig, char *jobid)
 **  DKIMF_CLEANUP -- release local resources related to a message
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	dfc -- message context
 **
 **  Return value:
 **  	None.
 */
 
 static void
-dkimf_cleanup(SMFICTX *ctx)
+dkimf_cleanup(struct msgctx * dfc)
 {
-	msgctx dfc;
-	connctx cc;
+	Header hdr;
+	struct addrlist * addr;
+	struct signreq * sr;
+#if defined(_FFR_STATSEXT)
+	struct statsext * stxt;
+#endif /* _FFR_STATSEXT */
+#if defined(USE_LUA)
+	struct lua_global * lgl;
+#endif /* USE_LUA */
 
-	assert(ctx != NULL);
-
-	cc = (connctx) dkimf_getpriv(ctx);
-
-	if (cc == NULL)
-		return;
-
-	dfc = cc->cctx_msg;
+	assert(dfc != NULL);
 
 	/* release memory, reset state */
-	if (dfc != NULL)
+	if ((hdr = dfc->mctx_hqhead) != NULL)
 	{
-		if (dfc->mctx_hqhead != NULL)
-		{
-			Header hdr;
-			Header prev;
+		Header prev;
 
-			hdr = dfc->mctx_hqhead;
-			while (hdr != NULL)
-			{
-				prev = hdr;
-				hdr = hdr->hdr_next;
-				TRYFREE(prev);
-			}
-		}
+		dfc->mctx_hqhead = NULL;
 
-		if (dfc->mctx_rcptlist != NULL)
-		{
-			struct addrlist *addr;
-			struct addrlist *next;
+		do {
+			prev = hdr;
+			hdr = hdr->hdr_next;
+			free(prev);
+		} while ( hdr != NULL );
+	}
 
-			addr = dfc->mctx_rcptlist;
-			while (addr != NULL)
-			{
-				next = addr->a_next;
+	if ((addr = dfc->mctx_rcptlist) != NULL)
+	{
+		struct addrlist * prev;
 
-				TRYFREE(addr);
+		dfc->mctx_rcptlist = NULL;
 
-				addr = next;
-			}
-		}
+		do {
+			prev = addr;
+			addr = addr->a_next;
+			free(prev);
+		} while ( addr != NULL );
+	}
 
-		if (dfc->mctx_srhead != NULL)
-		{
-			struct signreq *sr;
-			struct signreq *next;
+	if ((sr = dfc->mctx_srhead) != NULL)
+	{
+		struct signreq * prev;
 
-			sr = dfc->mctx_srhead;
-			while (sr != NULL)
-			{
-				next = sr->srq_next;
+		dfc->mctx_srhead = NULL;
 
-				if (sr->srq_dkim != NULL)
-					dkim_free(sr->srq_dkim);
-				TRYFREE(sr);
+		do {
+			CNDRLSE(sr->srq_dkim, dkim_free);
+			prev = sr;
+			sr = sr->srq_next;
+			free(prev);
+		} while ( sr != NULL );
+	}
 
-				sr = next;
-			}
-		}
-
-		if (dfc->mctx_dkimv != NULL)
-			dkim_free(dfc->mctx_dkimv);
+	CNDRLCL(dfc->mctx_dkimv, dkim_free);
 
 #ifdef _FFR_VBR
-		if (dfc->mctx_vbr != NULL)
-			vbr_close(dfc->mctx_vbr);
-
-		TRYFREE(dfc->mctx_vbrinfo);
+	CNDRLCL(dfc->mctx_vbr, vbr_close);
+	CNDFRCL(dfc->mctx_vbrinfo);
 #endif /* _FFR_VBR */
 
 #ifdef _FFR_STATSEXT
-		if (dfc->mctx_statsext != NULL)
-		{
-			struct statsext *cur;
-			struct statsext *next;
+	if ((stxt = dfc->mctx_statsext) != NULL)
+	{
+		struct statsext * prev;
 
-			cur = dfc->mctx_statsext;
-			while (cur != NULL)
-			{
-				next = cur->se_next;
-	
-				free(cur);
+		dfc->mctx_statsext = NULL;
 
-				cur = next;
-			}
-		}
+		do {
+			prev = stxt;
+			stxt = stxt->se_next;
+			free(prev);
+		} while ( stxt != NULL );
+	}
 #endif /* _FFR_STATSEXT */
 
 #ifdef USE_LUA
-		if (dfc->mctx_luaglobalh != NULL)
-		{
-			struct lua_global *cur;
-			struct lua_global *next;
+	if ((lgl = dfc->mctx_luaglobalh) != NULL)
+	{
+		struct lua_global * prev;
 
-			cur = dfc->mctx_luaglobalh;
-			while (cur != NULL)
-			{
-				next = cur->lg_next;
+		dfc->mctx_luaglobalh = NULL;
 
-				if (cur->lg_type == LUA_TNUMBER ||
-				    cur->lg_type == LUA_TSTRING)
-					free(cur->lg_value);
-
-				free(cur);
-
-				cur = next;
-			}
-		}
-#endif /* USE_LUA */
-
-		free(dfc);
-		cc->cctx_msg = NULL;
+		do {
+			if (lgl->lg_type == LUA_TNUMBER ||
+			    lgl->lg_type == LUA_TSTRING)
+				free(lgl->lg_value);
+			prev = lgl;
+			lgl = lgl->lg_next;
+			free(prev);
+		} while ( lgl != NULL );
 	}
+#endif /* USE_LUA */
 }
 
 /*
 **  DKIMF_MILTERCODE -- apply an internal result code to libmilter
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	dmc -- DKIMF_MILTER_* code
 **  	str -- quarantine string (optional)
 **
@@ -10023,7 +9877,7 @@ dkimf_miltercode(SMFICTX *ctx, int dmc, char *str)
 **  DKIMF_LIBSTATUS -- process a final status returned from libopendkim
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	dkim -- DKIM handle producing the status
 **  	where -- what function reported the error
 **  	status -- status returned by a libdk call (DKIM_STAT_*)
@@ -10047,11 +9901,7 @@ dkimf_libstatus(SMFICTX *ctx, DKIM *dkim, char *where, int status)
 
 	assert(ctx != NULL);
 
-	cc = dkimf_getpriv(ctx);
-	assert(cc != NULL);
-	dfc = cc->cctx_msg;
-	assert(dfc != NULL);
-	conf = cc->cctx_config;
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
 	memset(smtpprefix, '\0', sizeof smtpprefix);
 
@@ -10335,7 +10185,7 @@ dkimf_libstatus(SMFICTX *ctx, DKIM *dkim, char *where, int status)
 **  DKIMF_SVCSTATUS -- process a service exception
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	conf -- current configuration
 **  	lmsg -- message to appear in the log
 **  	rcs -- SMTP reply codes
@@ -10362,16 +10212,14 @@ dkimf_svcstatus_f(SMFICTX * ctx, const struct dkimf_config * conf,
 		  const char * lmsg, const struct rcodes * rcs,
 		  int action, char * rtxt)
 {
-	msgctx dfc;
-	connctx cc;
+	struct connctx * cc;
+	struct msgctx * dfc;
 	const char *atxt;
 	char *rcode = NULL;
 	char *xcode = NULL;
 
 	assert(ctx != NULL);
-	cc = dkimf_getpriv(ctx);
-	assert(cc != NULL);
-	dfc = cc->cctx_msg;
+	dkimf_cc_dfc(ctx, cc, dfc);
 
 	switch (action)
 	{
@@ -10837,7 +10685,7 @@ dkimf_apply_signtable(struct msgctx *dfc, DKIMF_DB keydb, DKIMF_DB signdb,
 */
 
 static void
-dkimf_sigreport(connctx cc, struct dkimf_config *conf, char *hostname)
+dkimf_sigreport(connctx cc, struct dkimf_config *conf, const char *hostname)
 {
 	_Bool sendreport = FALSE;
 	int bfd = -1;
@@ -10863,7 +10711,7 @@ dkimf_sigreport(connctx cc, struct dkimf_config *conf, char *hostname)
 
 	assert(cc != NULL);
 
-	dfc = cc->cctx_msg;
+	dfc = &(cc->cctx_msg);
 
 	assert(dfc->mctx_dkimv != NULL);
 	assert(conf != NULL);
@@ -11166,9 +11014,7 @@ dkimf_sigreport(connctx cc, struct dkimf_config *conf, char *hostname)
 	fprintf(out, "Original-Mail-From: %s\n", dfc->mctx_envfrom);
 	fprintf(out, "Reporting-MTA: %s\n", hostname);
 	fprintf(out, "Source-IP: %s\n", ipstr);
-	fprintf(out, "Message-ID:%s%s\n",
-	        cc->cctx_noleadspc ? "" : " ",
-	        hdr == NULL ? "(none)" : hdr->hdr_val);
+	fprintf(out, "Message-ID:%s\n", hdr == NULL ? "(none)" : hdr->hdr_val);
 	fprintf(out, "Arrival-Date: %s\n", fmt);
 	fprintf(out, "Reported-Domain: %s\n", dkim_sig_getdomain(sig));
 	fprintf(out, "Delivery-Result: other\n");
@@ -11233,8 +11079,7 @@ dkimf_sigreport(connctx cc, struct dkimf_config *conf, char *hostname)
 
 	for (hdr = dfc->mctx_hqhead; hdr != NULL; hdr = hdr->hdr_next)
 	{
-		fprintf(out, "%s:%s%s\n", hdr->hdr_hdr,
-		        cc->cctx_noleadspc ? "" : " ", hdr->hdr_val);
+		fprintf(out, "%s:%s\n", hdr->hdr_hdr, hdr->hdr_val);
 	}
 
 	/* end */
@@ -11626,7 +11471,7 @@ dkimf_check_conditional(struct msgctx *dfc, struct dkimf_config *conf,
 			}
 
 			newsr->srq_dkim = dkim_sign(conf->conf_libopendkim,
-			                            dfc->mctx_jobid,
+			                            (u_char *) dfc->mctx_jobid,
 			                            NULL,
 			                            keydata,
 			                            selector,
@@ -11887,218 +11732,14 @@ done:
 /*
 **  END private section
 **  ==================================================================
-**  BEGIN milter section
+**  BEGIN libmilter section
 */
-
-#if SMFI_VERSION >= 0x01000000
-/*
-**  MLFI_NEGOTIATE -- handler called on new SMTP connection to negotiate
-**                    MTA options
-**
-**  Parameters:
-**  	ctx -- milter context
-**	f0  -- actions offered by the MTA
-**	f1  -- protocol steps offered by the MTA
-**	f2  -- reserved for future extensions
-**	f3  -- reserved for future extensions
-**	pf0 -- actions requested by the milter
-**	pf1 -- protocol steps requested by the milter
-**	pf2 -- reserved for future extensions
-**	pf3 -- reserved for future extensions
-**
-**  Return value:
-**  	An SMFIS_* constant.
-*/
-
-sfsistat
-mlfi_negotiate(SMFICTX *ctx,
-	unsigned long f0, unsigned long f1,
-	unsigned long f2, unsigned long f3,
-	unsigned long *pf0, unsigned long *pf1,
-	unsigned long *pf2, unsigned long *pf3)
-{
-	unsigned long reqactions = SMFIF_ADDHDRS;
-# if defined(SMFIF_SETSYMLIST) && defined(HAVE_SMFI_SETSYMLIST)
-	unsigned long wantactions = (SMFIF_SETSYMLIST);
-# else /* defined(SMFIF_SETSYMLIST) && defined(HAVE_SMFI_SETSYMLIST) */
-	unsigned long wantactions = 0;
-# endif /* defined(SMFIF_SETSYMLIST) && defined(HAVE_SMFI_SETSYMLIST) */
-	unsigned long protosteps = (SMFIP_NOHELO |
-	                            SMFIP_NOUNKNOWN |
-	                            SMFIP_NODATA |
-	                            SMFIP_SKIP );
-	connctx cc;
-	struct dkimf_config *conf;
-
-	dkimf_config_reload();
-
-	/* initialize connection context */
-	cc = malloc(sizeof(struct connctx));
-	if (cc == NULL)
-	{
-		if (curconf->conf_dolog)
-		{
-			syslog(LOG_ERR, "mlfi_negotiate(): malloc(): %s",
-			       strerror(errno));
-		}
-
-		return SMFIS_TEMPFAIL;
-	}
-
-	memset(cc, '\0', sizeof(struct connctx));
-
-	pthread_mutex_lock(&conf_lock);
-
-	cc->cctx_config = curconf;
-	curconf->conf_refcnt++;
-	conf = curconf;
-
-	pthread_mutex_unlock(&conf_lock);
-
-	/* verify the actions we need are available */
-	if (conf->conf_remarall ||
-	    !conf->conf_keepar ||
-# ifdef _FFR_IDENTITY_HEADER
-	    conf->conf_rmidentityhdr ||
-# endif /* _FFR_IDENTITY_HEADER */
-# ifdef _FFR_VBR
-	    conf->conf_vbr_purge ||
-# endif /* _FFR_VBR */
-	    conf->conf_remsigs)
-		reqactions |= SMFIF_CHGHDRS;
-
-# ifdef SMFIF_QUARANTINE
-	if (conf->conf_capture)
-		reqactions |= SMFIF_QUARANTINE;
-# endif /* SMFIF_QUARANTINE */
-
-#if defined(REDIRECT_FAILURES) || defined(USE_LUA)
-#if defined(REDIRECT_FAILURES)
-	if (conf->conf_redirect != NULL)
-	{
-#endif /* REDIRECT_FAILURES */
-		reqactions |= SMFIF_ADDRCPT;
-		reqactions |= SMFIF_DELRCPT;
-#if defined(REDIRECT_FAILURES)
-	}
-#endif /* REDIRECT_FAILURES */
-#endif /* REDIRECT_FAILURES || USE_LUA */
-
-	if ((f0 & reqactions) != reqactions)
-	{
-		if (conf->conf_dolog)
-		{
-			syslog(LOG_ERR,
-			       "mlfi_negotiate(): required milter action(s) not available (got 0x%lx, need 0x%lx)",
-			       f0, reqactions);
-		}
-
-		pthread_mutex_lock(&conf_lock);
-		conf->conf_refcnt--;
-		pthread_mutex_unlock(&conf_lock);
-
-		free(cc);
-
-		return SMFIS_REJECT;
-	}
-
-	/* also try to get some nice features */
-	wantactions = (wantactions & f0);
-
-	/* set the actions we want */
-	*pf0 = (reqactions | wantactions);
-
-	/* disable as many protocol steps we don't need as are available */
-	*pf1 = (protosteps & f1);
-
-# ifdef SMFIP_HDR_LEADSPC
-	/* request preservation of leading spaces if possible */
-	if ((f1 & SMFIP_HDR_LEADSPC) != 0)
-	{
-		if (cc != NULL)
-		{
-			cc->cctx_noleadspc = TRUE;
-			*pf1 |= SMFIP_HDR_LEADSPC;
-		}
-	}
-# endif /* SMFIP_HDR_LEADSPC */
-
-	*pf2 = 0;
-	*pf3 = 0;
-
-	/* request macros if able */
-# if defined(SMFIF_SETSYMLIST) && defined(HAVE_SMFI_SETSYMLIST)
-	if ((wantactions & SMFIF_SETSYMLIST) != 0)
-	{
-		char macrolist[BUFRSZ];
-
-		memset(macrolist, '\0', sizeof macrolist);
-
-		strlcpy(macrolist, DKIMF_EOHMACROS, sizeof macrolist);
-
-#if defined(LOCAL_SIGNING_CRITERIA)
-		if (conf->conf_macros != NULL)
-		{
-			int c;
-
-			for (c = 0; conf->conf_macros[c] != NULL; c++)
-			{
-				if (macrolist[0] != '\0')
-					strlcat(macrolist, " ", sizeof macrolist);
-
-				if (strlcat(macrolist, conf->conf_macros[c],
-					sizeof macrolist) >= sizeof macrolist)
-				{
-					if (conf->conf_dolog)
-					{
-						syslog(LOG_ERR,
-						       "mlfi_negotiate(): "
-						       "macro list overflow");
-					}
-
-					pthread_mutex_lock(&conf_lock);
-					conf->conf_refcnt--;
-					pthread_mutex_unlock(&conf_lock);
-
-					free(cc);
-
-					return SMFIS_REJECT;
-				}
-			}
-		}
-#endif /* LOCAL_SIGNING_CRITERIA */
-
-		if (smfi_setsymlist(ctx, SMFIM_EOH, macrolist) != MI_SUCCESS)
-		{
-			if (conf->conf_dolog)
-				syslog(LOG_ERR, "smfi_setsymlist() failed");
-
-			pthread_mutex_lock(&conf_lock);
-			conf->conf_refcnt--;
-			pthread_mutex_unlock(&conf_lock);
-
-			free(cc);
-
-			return SMFIS_REJECT;
-		}
-	}
-# endif /* defined(SMFIF_SETSYMLIST) && defined(HAVE_SMFI_SETSYMLIST) */
-
-	/* set "milterv2" flag if SMFIP_SKIP was available */
-	if ((f1 & SMFIP_SKIP) != 0)
-		cc->cctx_milterv2 = TRUE;
-
-	(void) dkimf_setpriv(ctx, cc);
-
-	return SMFIS_CONTINUE;
-}
-#endif /* SMFI_VERSION >= 0x01000000 */
 
 /*
 **  MLFI_CONNECT -- connection handler
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	host -- hostname
 **  	ip -- address, in in_addr form
 **
@@ -12109,50 +11750,32 @@ mlfi_negotiate(SMFICTX *ctx,
 sfsistat
 mlfi_connect(SMFICTX *ctx, char *host, _SOCK_ADDR *ip)
 {
-	char *err = NULL;
-	connctx cc;
-	struct dkimf_config *conf;
+	struct connctx * cc;
+	struct dkimf_config * conf;
+	char * err = NULL;
+
+	cc = dkimf_getpriv(ctx);
+
+	/* The mlfi_connect() may be called out-of-order. */
+	if (cc->cctx_config != NULL)
+	{
+		syslog(LOG_WARNING, "mlfi_connect() called out-of-order");
+		goto we_are_done_here;
+	}
 
 	dkimf_config_reload();
 
-	/* copy hostname and IP information to a connection context */
-	cc = dkimf_getpriv(ctx);
-	if (cc == NULL)
-	{
-		cc = malloc(sizeof(struct connctx));
-		if (cc == NULL)
-		{
-			pthread_mutex_lock(&conf_lock);
+	pthread_mutex_lock(&conf_lock);
 
-			if (curconf->conf_dolog)
-			{
-				syslog(LOG_ERR, "%s malloc(): %s", host,
-				       strerror(errno));
-			}
+	curconf->conf_refcnt++;
+	conf = curconf;
 
-			pthread_mutex_unlock(&conf_lock);
+	pthread_mutex_unlock(&conf_lock);
 
-			/* XXX result should depend on On-InternalError */
-			return SMFIS_TEMPFAIL;
-		}
+	/* Initialize the libmilter-managed connection context. */
+	memset(cc, '\0', sizeof(*cc));
 
-		memset(cc, '\0', sizeof(struct connctx));
-
-		pthread_mutex_lock(&conf_lock);
-
-		cc->cctx_config = curconf;
-		curconf->conf_refcnt++;
-
-		conf = curconf;
-
-		pthread_mutex_unlock(&conf_lock);
-
-		dkimf_setpriv(ctx, cc);
-	}
-	else
-	{
-		conf = cc->cctx_config;
-	}
+	cc->cctx_config = conf;
 
 	if (
 #if defined(STRICT_MODE)
@@ -12215,38 +11838,16 @@ mlfi_connect(SMFICTX *ctx, char *host, _SOCK_ADDR *ip)
 	}
 #endif /* AF_INET6 */
 
-	cc->cctx_msg = NULL;
+we_are_done_here:
 
 	return SMFIS_CONTINUE;
 }
-
-#if SMFI_VERSION == 2
-/*
-**  MLFI_HELO -- handler for HELO/EHLO command (start of message)
-**
-**  Parameters:
-**  	ctx -- milter context
-**  	helo -- HELO/EHLO parameter
-**
-**  Return value:
-**  	An SMFIS_* constant.
-*/
-
-sfsistat
-mlfi_helo(SMFICTX *ctx, char *helo)
-{
-	assert(ctx != NULL);
-	assert(helo != NULL);
-
-	return SMFIS_CONTINUE;
-}
-#endif /* SMFI_VERSION == 2 */
 
 /*
 **  MLFI_ENVFROM -- handler for MAIL FROM command (start of message)
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	envfrom -- envelope from arguments
 **
 **  Return value:
@@ -12256,9 +11857,9 @@ mlfi_helo(SMFICTX *ctx, char *helo)
 sfsistat
 mlfi_envfrom(SMFICTX *ctx, char **envfrom)
 {
-	connctx cc;
-	msgctx dfc;
-	struct dkimf_config *conf;
+	struct connctx * cc;
+	struct msgctx * dfc;
+	struct dkimf_config * conf;
 #if defined(BYPASS_CRITERIA)
 	unsigned char addr[MAXADDRESS + 1];
 	unsigned char * domain = NULL;
@@ -12268,27 +11869,11 @@ mlfi_envfrom(SMFICTX *ctx, char **envfrom)
 	assert(ctx != NULL);
 	assert(envfrom != NULL);
 
-	cc = (connctx) dkimf_getpriv(ctx);
-	assert(cc != NULL);
-	conf = cc->cctx_config;
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
-	/*
-	**  Initialize a filter context.
-	*/
-
-	dkimf_cleanup(ctx);
-	dfc = dkimf_initcontext(conf);
-	if (dfc == NULL)
-	{
-		if (conf->conf_dolog)
-		{
-			syslog(LOG_INFO,
-			       "message requeueing (internal error)");
-		}
-
-		dkimf_cleanup(ctx);
-		return SMFIS_TEMPFAIL;
-	}
+	/* Prophylactically clear an old and initialize a new message context. */
+	dkimf_cleanup(dfc);
+	dkimf_initcontext(dfc, conf);
 
 	if (envfrom[0] != NULL)
 	{
@@ -12340,7 +11925,6 @@ mlfi_envfrom(SMFICTX *ctx, char **envfrom)
 				               (char *) domain);
 			}
 
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 
@@ -12353,17 +11937,10 @@ mlfi_envfrom(SMFICTX *ctx, char **envfrom)
 				       dfc->mctx_jobid, domain);
 			}
 
-			dkimf_cleanup(ctx);
 			return SMFIS_ACCEPT;
 		}
 	}
 #endif /* BYPASS_CRITERIA */
-
-	/*
-	**  Save it in this thread's private space.
-	*/
-
-	cc->cctx_msg = dfc;
 
 	/*
 	**  Continue processing.
@@ -12376,7 +11953,7 @@ mlfi_envfrom(SMFICTX *ctx, char **envfrom)
 **  MLFI_ENVRCPT -- handler for RCPT TO command
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	envrcpt -- envelope rcpt to arguments
 **
 **  Return value:
@@ -12386,18 +11963,14 @@ mlfi_envfrom(SMFICTX *ctx, char **envfrom)
 sfsistat
 mlfi_envrcpt(SMFICTX *ctx, char **envrcpt)
 {
-	connctx cc;
-	msgctx dfc;
-	struct dkimf_config *conf;
+	struct connctx * cc;
+	struct msgctx * dfc;
+	struct dkimf_config * conf;
 
 	assert(ctx != NULL);
 	assert(envrcpt != NULL);
 
-	cc = (connctx) dkimf_getpriv(ctx);
-	assert(cc != NULL);
-	dfc = cc->cctx_msg;
-	assert(dfc != NULL);
-	conf = cc->cctx_config;
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
 #if defined(BYPASS_CRITERIA)
 	if (conf->conf_dontsigntodb != NULL
@@ -12443,7 +12016,6 @@ mlfi_envrcpt(SMFICTX *ctx, char **envrcpt)
 				       "message requeueing (internal error)");
 			}
 
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 
@@ -12467,7 +12039,7 @@ mlfi_envrcpt(SMFICTX *ctx, char **envrcpt)
 **                 substrings
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	headerf -- header
 **  	headerv -- value
 **
@@ -12482,10 +12054,10 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 	_Bool dorepl = FALSE;
 	struct dkimf_dstring *tmpstr = NULL;
 #endif /* _FFR_REPLACE_RULES */
-	msgctx dfc;
-	connctx cc;
+	struct connctx * cc;
+	struct msgctx * dfc;
+	struct dkimf_config * conf;
 	Header newhdr;
-	struct dkimf_config *conf;
 	size_t namelen;
 	size_t bodylen;
 	size_t allocsz;
@@ -12495,11 +12067,7 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 	assert(headerf != NULL);
 	assert(headerv != NULL);
 
-	cc = (connctx) dkimf_getpriv(ctx);
-	assert(cc != NULL);
-	dfc = cc->cctx_msg;
-	assert(dfc != NULL);
-	conf = cc->cctx_config;
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
 	namelen = strlen(headerf);
 	bodylen = strlen(headerv);
@@ -12544,40 +12112,6 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 # endif /* USE_GNUTLS */
 #endif /* _FFR_REPUTATION */
 
-	if (!cc->cctx_noleadspc)
-	{
-		/*
-		**  The sendmail MTA does some minor header rewriting on
-		**  outgoing mail.  This makes things slightly prettier for
-		**  the MUA, but these changes are made after this filter has
-		**  already generated and added a signature.  As a result,
-		**  verification of the signature will fail because what got
-		**  signed isn't the same as what actually goes out.  This
-		**  chunk of code attempts to compensate by arranging to
-		**  feed to the canonicalization algorithms the headers
-		**  exactly as the MTA will modify them, so verification
-		**  should still work.
-		**  
-		**  This is based on experimentation and on reading
-		**  sendmail/headers.c, and may require more tweaking before
-		**  it's precisely right.  There are other munges the
-		**  sendmail MTA makes which are not (yet) addressed by this
-		**  code.
-		**
-		**  This should not be used with sendmail 8.14 and later as
-		**  it is not required; that version of sendmail and
-		**  libmilter handles the munging correctly (by suppressing
-		**  it).
-		*/
-
-		p = headerv;
-		while (isascii(*p) && isspace(*p))
-			p++;
-
-		headerv = p;
-		bodylen = strlen(p);
-	}
-
 #ifdef _FFR_REPLACE_RULES
 	if (conf->conf_rephdrsdb == NULL)
 	{
@@ -12615,7 +12149,6 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 			if (conf->conf_dolog)
 				syslog(LOG_ERR, "dkimf_dstring_new() failed");
 
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 
@@ -12627,7 +12160,6 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 
 			dkimf_dstring_free(tmpstr);
 
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 
@@ -12659,7 +12191,6 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 					dkimf_dstring_free(tmpstr);
 					dkimf_dstring_free(tmphdr);
 
-					dkimf_cleanup(ctx);
 					return SMFIS_TEMPFAIL;
 				}
 
@@ -12689,7 +12220,6 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 		if (conf->conf_dolog)
 			syslog(LOG_ERR, "malloc(): %s", strerror(errno));
 
-		dkimf_cleanup(ctx);
 		return SMFIS_TEMPFAIL;
 	}
 
@@ -12732,7 +12262,7 @@ mlfi_header(SMFICTX *ctx, char *headerf, char *headerv)
 **  MLFI_EOH -- handler called when there are no more headers
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **
 **  Return value:
 **  	An SMFIS_* constant.
@@ -12756,11 +12286,11 @@ mlfi_eoh(SMFICTX *ctx)
 	int c;
 	DKIM_STAT status;
 	sfsistat ms = SMFIS_CONTINUE;
-	connctx cc;
-	msgctx dfc;
+	struct connctx * cc;
+	struct msgctx * dfc;
 	DKIM *lastdkim;
 #ifdef _FFR_SENDER_MACRO
-	char *macrosender = NULL;
+	const char *macrosender = NULL;
 #endif /* _FFR_SENDER_MACRO */
 	u_char addr[DKIM_MAXHEADER + 1];
 	u_char *lpart;
@@ -12778,19 +12308,15 @@ mlfi_eoh(SMFICTX *ctx)
 
 	assert(ctx != NULL);
 
-	cc = (connctx) dkimf_getpriv(ctx);
-	assert(cc != NULL);
-	dfc = cc->cctx_msg;
-	assert(dfc != NULL);
-	conf = cc->cctx_config;
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
 	/*
 	**  Determine the message ID for logging.
 	*/
 
-	dfc->mctx_jobid = (u_char *) dkimf_getsymval(ctx, "i");
+	dfc->mctx_jobid = dkimf_getsymval(ctx, "i");
 	if (dfc->mctx_jobid == NULL || dfc->mctx_jobid[0] == '\0')
-		dfc->mctx_jobid = (u_char *) JOBIDUNKNOWN;
+		dfc->mctx_jobid = JOBIDUNKNOWN;
 
 #if defined(STRICT_MODE)
 	if (AS_SIGNER(conf))
@@ -13137,8 +12663,8 @@ mlfi_eoh(SMFICTX *ctx)
 	if (             conf->conf_mtasdb != NULL)
 #endif /* !_FFR_RESIGN */
 	{
-		char *mtaname;
-		char *host;
+		const char *mtaname;
+		const char *host;
 
 		mtaname = dkimf_getsymval(ctx, "{daemon_name}");
 		host = dkimf_getsymval(ctx, "j");
@@ -13166,8 +12692,9 @@ mlfi_eoh(SMFICTX *ctx)
 	{
 		_Bool done = FALSE;
 		int n;
-		char *val;
+		const char * v;
 		char name[BUFRSZ + 1];
+		char val[BUFRSZ + 1];
 		struct dkimf_db_data dbd;
 
 		for (n = 0; !done && conf->conf_macros[n] != NULL; n++)
@@ -13175,13 +12702,14 @@ mlfi_eoh(SMFICTX *ctx)
 			/* retrieve the macro */
 			snprintf(name, sizeof name, "{%s}",
 			         conf->conf_macros[n]);
-			val = dkimf_getsymval(ctx, name);
+			v = dkimf_getsymval(ctx, name);
 
 			/* short-circuit if the macro's not set */
-			if (val == NULL)
+			if (v == NULL)
 				continue;
 
 			memset(&dbd, '\0', sizeof dbd);
+			strlcpy(val, v, sizeof(val));
 			dbd.dbdata_buffer = val;
 			dbd.dbdata_buflen = strlen(val) + 1;
 			dbd.dbdata_flags = 0;
@@ -13207,7 +12735,7 @@ mlfi_eoh(SMFICTX *ctx)
 	{
 #if defined(LOCAL_SIGNING_CRITERIA)
 		_Bool internal;
-		char *authtype;
+		const char *authtype;
 #endif /* LOCAL_SIGNING_CRITERIA */
 #ifdef POPAUTH
 		_Bool popauth;
@@ -13673,7 +13201,7 @@ mlfi_eoh(SMFICTX *ctx)
 #endif /* !_FFR_ATPS && !_FFR_CONDITIONAL */
 
 		dfc->mctx_dkimv = dkim_verify(conf->conf_libopendkim,
-		                              dfc->mctx_jobid, NULL,
+		                              (u_char *) dfc->mctx_jobid, NULL,
 #if !DKIM_LIBFEATURE(MANAGE_AUTHOR_IDENTIFIERS)
 		                              dfc->mctx_author_domain,
 #endif /* !MANAGE_AUTHOR_IDENTIFIERS */
@@ -13750,7 +13278,7 @@ mlfi_eoh(SMFICTX *ctx)
 			for (a = dfc->mctx_rcptlist; a != NULL; a = a->a_next)
 			{
 				if (dkimf_checkbldb(conf->conf_bldb, a->a_addr,
-				                    (char *) dfc->mctx_jobid))
+				                    dfc->mctx_jobid))
 				{
 #if defined(USE_LUA)
 					dfc->mctx_ltag = TRUE;
@@ -13891,7 +13419,7 @@ mlfi_eoh(SMFICTX *ctx)
 #endif /* SINGLE_SIGNING */
 
 			sr->srq_dkim = dkim_sign(conf->conf_libopendkim,
-			                         dfc->mctx_jobid,
+			                         (u_char *) dfc->mctx_jobid,
 			                         NULL, keydata, selector,
 			                         sdomain,
 			                         hdrcanon,
@@ -14087,7 +13615,6 @@ mlfi_eoh(SMFICTX *ctx)
 				       "%s: smfi_setreply() failed",
 				       dfc->mctx_jobid);
 			}
-			dkimf_cleanup(ctx);
 			return SMFIS_REJECT;
 #endif /* !STRICT_MODE */
 		}
@@ -14104,7 +13631,6 @@ mlfi_eoh(SMFICTX *ctx)
 			syslog(LOG_ERR, "%s: can't create VBR context",
 			       dfc->mctx_jobid);
 		}
-		dkimf_cleanup(ctx);
 		return SMFIS_TEMPFAIL;
 	}
 
@@ -14126,7 +13652,6 @@ mlfi_eoh(SMFICTX *ctx)
 			syslog(LOG_ERR, "%s: can't initialize VBR resolver",
 			       dfc->mctx_jobid);
 		}
-		dkimf_cleanup(ctx);
 		return SMFIS_TEMPFAIL;
 	}
 
@@ -14141,7 +13666,6 @@ mlfi_eoh(SMFICTX *ctx)
 				       "%s: can't set VBR resolver list",
 				       dfc->mctx_jobid);
 			}
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 	}
@@ -14158,7 +13682,6 @@ mlfi_eoh(SMFICTX *ctx)
 				       conf->conf_trustanchorpath,
 				       strerror(errno));
 			}
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 
@@ -14173,7 +13696,6 @@ mlfi_eoh(SMFICTX *ctx)
 				       dfc->mctx_jobid,
 				       conf->conf_trustanchorpath);
 			}
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 	}
@@ -14190,7 +13712,6 @@ mlfi_eoh(SMFICTX *ctx)
 				       "%s: can't set VBR resolver configuration",
 				       dfc->mctx_jobid);
 			}
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 	}
@@ -14279,7 +13800,6 @@ mlfi_eoh(SMFICTX *ctx)
 					syslog(LOG_ERR, "%s: strdup(): %s",
 					       dfc->mctx_jobid,
 					       strerror(errno));
-					dkimf_cleanup(ctx);
 					return SMFIS_TEMPFAIL;
 				}
 
@@ -14292,7 +13812,6 @@ mlfi_eoh(SMFICTX *ctx)
 						syslog(LOG_ERR, "malloc(): %s",
 						       strerror(errno));
 
-						dkimf_cleanup(ctx);
 						return SMFIS_TEMPFAIL;
 					}
 				}
@@ -14351,8 +13870,6 @@ mlfi_eoh(SMFICTX *ctx)
 
 		dkimf_dstring_copy(tmpstr, (u_char *) hdr->hdr_hdr);
 		dkimf_dstring_cat1(tmpstr, ':');
-		if (!cc->cctx_noleadspc)
-			dkimf_dstring_cat1(tmpstr, ' ');
 
 		last = '\0';
 
@@ -14518,7 +14035,7 @@ mlfi_eoh(SMFICTX *ctx)
 **  MLFI_BODY -- handler for an arbitrary body block
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **  	bodyp -- body block
 **  	bodylen -- amount of data available at bodyp
 **
@@ -14535,16 +14052,13 @@ mlfi_body(SMFICTX *ctx, u_char *bodyp, size_t bodylen)
 {
 	int status;
 	DKIM *last;
-	msgctx dfc;
-	connctx cc;
+	struct connctx * cc;
+	struct msgctx * dfc;
 
 	assert(ctx != NULL);
 	assert(bodyp != NULL);
 
-	cc = (connctx) dkimf_getpriv(ctx);
-	assert(cc != NULL);
-	dfc = cc->cctx_msg;
-	assert(dfc != NULL);
+	dkimf_cc_dfc(ctx, cc, dfc);
 
 	/*
 	**  No need to do anything if the body was empty.
@@ -14566,16 +14080,7 @@ mlfi_body(SMFICTX *ctx, u_char *bodyp, size_t bodylen)
 	*/
 
 	if (dfc->mctx_headeronly)
-	{
-#ifdef SMFIS_SKIP
-		if (cc->cctx_milterv2)
-			return SMFIS_SKIP;
-		else
-			return SMFIS_CONTINUE;
-#else /* SMFIS_SKIP */
-			return SMFIS_CONTINUE;
-#endif /* SMFIS_SKIP */
-	}
+		return SMFIS_SKIP;
 
 	last = NULL;
 	status = DKIM_STAT_OK;
@@ -14597,14 +14102,11 @@ mlfi_body(SMFICTX *ctx, u_char *bodyp, size_t bodylen)
 	if (status != DKIM_STAT_OK)
 		return dkimf_libstatus(ctx, last, "dkim_body()", status);
 
-#ifdef SMFIS_SKIP
 	/* skip the body if neither signing mode nor verify mode need it */
-	if (cc->cctx_milterv2 &&
-	    (dfc->mctx_srhead == NULL ||
+	if ((dfc->mctx_srhead == NULL ||
 	     dkimf_msr_minbody(dfc->mctx_srhead) == 0) &&
 	    (dfc->mctx_dkimv == NULL || dkim_minbody(dfc->mctx_dkimv) == 0))
 		return SMFIS_SKIP;
-#endif /* SMFIS_SKIP */
 
 	return SMFIS_CONTINUE;
 }
@@ -14615,7 +14117,7 @@ mlfi_body(SMFICTX *ctx, u_char *bodyp, size_t bodylen)
 **              to this message, then release resources
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **
 **  Return value:
 **  	An SMFIS_* constant.
@@ -14629,11 +14131,11 @@ mlfi_eom(SMFICTX *ctx)
 	DKIM_STAT status = DKIM_STAT_OK;
 	int c;
 	sfsistat ret;
-	connctx cc;
-	msgctx dfc;
+	struct connctx * cc;
+	struct msgctx * dfc;
 	DKIM *lastdkim = NULL;
-	char *authservid;
-	char *hostname;
+	const char *authservid;
+	const char *hostname;
 	struct dkimf_config *conf;
 	DKIM_SIGINFO *sig = NULL;
 	Header hdr;
@@ -14642,11 +14144,7 @@ mlfi_eom(SMFICTX *ctx)
 
 	assert(ctx != NULL);
 
-	cc = (connctx) dkimf_getpriv(ctx);
-	assert(cc != NULL);
-	dfc = cc->cctx_msg;
-	assert(dfc != NULL);
-	conf = cc->cctx_config;
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
 	dfc->mctx_eom = TRUE;
 
@@ -14655,9 +14153,9 @@ mlfi_eom(SMFICTX *ctx)
 	**  later than expected (e.g. postfix).
 	*/
 
-	if (strcmp((char *) dfc->mctx_jobid, JOBIDUNKNOWN) == 0)
+	if (strcmp(dfc->mctx_jobid, JOBIDUNKNOWN) == 0)
 	{
-		dfc->mctx_jobid = (u_char *) dkimf_getsymval(ctx, "i");
+		dfc->mctx_jobid = dkimf_getsymval(ctx, "i");
 		if (dfc->mctx_jobid == NULL || dfc->mctx_jobid[0] == '\0')
 		{
 			if (no_i_whine && conf->conf_dolog)
@@ -14666,7 +14164,7 @@ mlfi_eom(SMFICTX *ctx)
 				       "WARNING: symbol 'i' not available");
 				no_i_whine = FALSE;
 			}
-			dfc->mctx_jobid = (u_char *) JOBIDUNKNOWN;
+			dfc->mctx_jobid = JOBIDUNKNOWN;
 		}
 	}
 
@@ -14715,8 +14213,7 @@ mlfi_eom(SMFICTX *ctx)
 			/* NOTREACHED */
 		}
 
-		snprintf((char *) header, sizeof header, "%s%s; dkim=%s (%s)",
-		         cc->cctx_noleadspc ? " " : "",
+		snprintf((char *) header, sizeof header, " %s; dkim=%s (%s)",
 		         authservid, ar,
 		         dkimf_lookup_inttostr(dfc->mctx_status,
 		                               dkimf_statusstrings));
@@ -14783,7 +14280,7 @@ mlfi_eom(SMFICTX *ctx)
 		{
 			const u_char *d;
 
-			dkimf_dstring_cat(tmpstr, dfc->mctx_jobid);
+			dkimf_dstring_cat(tmpstr, (u_char *) dfc->mctx_jobid);
 			dkimf_dstring_cat(tmpstr,
 			                  (u_char *) ": message has signatures from ");
 
@@ -15042,7 +14539,7 @@ mlfi_eom(SMFICTX *ctx)
 				lastdkim = dfc->mctx_dkimv;
 				sig = dkim_getsignature(dfc->mctx_dkimv);
 				dkimf_log_ssl_errors(lastdkim, sig,
-				                     (char *) dfc->mctx_jobid);
+				                     dfc->mctx_jobid);
 			}
 
 			status = dkimf_libstatus(ctx, dfc->mctx_dkimv,
@@ -15125,10 +14622,8 @@ mlfi_eom(SMFICTX *ctx)
 					     hdr != NULL;
 					     hdr = hdr->hdr_next)
 					{
-						fprintf(f, "%s:%s%s\n",
+						fprintf(f, "%s:%s\n",
 						        hdr->hdr_hdr,
-						        cc->cctx_noleadspc ? ""
-						                           : " ",
 						        hdr->hdr_val);
 					}
 
@@ -15499,7 +14994,6 @@ mlfi_eom(SMFICTX *ctx)
 						}
 
 						dkimf_dstring_free(tmpstr);
-						dkimf_cleanup(ctx);
 						return SMFIS_TEMPFAIL;
 					}
 				}
@@ -15686,7 +15180,6 @@ mlfi_eom(SMFICTX *ctx)
 						}
 
 						dkimf_dstring_free(tmpstr);
-						dkimf_cleanup(ctx);
 						return SMFIS_TEMPFAIL;
 					}
 				}
@@ -15706,8 +15199,7 @@ mlfi_eom(SMFICTX *ctx)
 			memset(val, '\0', sizeof val);
 			memset(header, '\0', sizeof header);
 
-			snprintf((char *) header, sizeof header, "%s%s",
-		        	 cc->cctx_noleadspc ? " " : "",
+			snprintf((char *) header, sizeof header, " %s",
 		        	 authservid);
 
 			if (conf->conf_authservidwithjobid &&
@@ -15715,7 +15207,7 @@ mlfi_eom(SMFICTX *ctx)
 			{
 				strlcat((char *) header, "/", sizeof header);
 				strlcat((char *) header,
-				        (char *) dfc->mctx_jobid,
+				        dfc->mctx_jobid,
 				        sizeof header);
 			}
 
@@ -16110,12 +15602,11 @@ mlfi_eom(SMFICTX *ctx)
 				{
 					snprintf((char *) header,
 					         sizeof header,
-					         "%s%s%s%s vbr=%s header.md=%s",
-					         cc->cctx_noleadspc ? " " : "",
+					         " %s%s%s vbr=%s header.md=%s",
 					         authservid,
 					         conf->conf_authservidwithjobid ? "/"
 					                                        : "",
-					         conf->conf_authservidwithjobid ? (char *) dfc->mctx_jobid
+					         conf->conf_authservidwithjobid ? dfc->mctx_jobid
 					                                        : "",
 					         vbr_result,
 					         vbr_domain);
@@ -16291,8 +15782,7 @@ mlfi_eom(SMFICTX *ctx)
 		if (status != DKIM_STAT_OK)
 		{
 			dkimf_dstring_free(tmpstr);
-			dkimf_log_ssl_errors(lastdkim, NULL,
-			                     (char *) dfc->mctx_jobid);
+			dkimf_log_ssl_errors(lastdkim, NULL, dfc->mctx_jobid);
 			return dkimf_libstatus(ctx, lastdkim, "dkim_eom()",
 			                       status);
 		}
@@ -16326,8 +15816,7 @@ mlfi_eom(SMFICTX *ctx)
 		     sr = sr->srq_next)
 		{
 			dkimf_dstring_blank(tmpstr);
-			if (cc->cctx_noleadspc)
-				dkimf_dstring_cat1(tmpstr, ' ');
+			dkimf_dstring_cat1(tmpstr, ' ');
 
 			lastdkim = sr->srq_dkim;
 			status = dkim_getsighdr_d(sr->srq_dkim,
@@ -16441,11 +15930,10 @@ mlfi_eom(SMFICTX *ctx)
 
 		memset(xfhdr, '\0', sizeof xfhdr);
 
-		snprintf(xfhdr, DKIM_MAXHEADER, "%s%s v%s %s %s",
-		         cc->cctx_noleadspc ? " " : "",
+		snprintf(xfhdr, DKIM_MAXHEADER, " %s v%s %s %s",
 		         DKIMF_PRODUCT, VERSION, hostname,
 		         dfc->mctx_jobid != NULL ? dfc->mctx_jobid
-		                                 : (u_char *) JOBIDUNKNOWN);
+		                                 : JOBIDUNKNOWN);
 
 		if (dkimf_insheader(ctx, 1, SWHEADERNAME, xfhdr) != MI_SUCCESS)
 		{
@@ -16455,13 +15943,12 @@ mlfi_eom(SMFICTX *ctx)
 				       dfc->mctx_jobid, SWHEADERNAME);
 			}
 
-			dkimf_cleanup(ctx);
 			return SMFIS_TEMPFAIL;
 		}
 	}
 
 	if (lastdkim != NULL)
-		dkimf_log_ssl_errors(lastdkim, sig, (char *) dfc->mctx_jobid);
+		dkimf_log_ssl_errors(lastdkim, sig, dfc->mctx_jobid);
 
 	/*
 	**  If we got this far, we're ready to complete.
@@ -16519,28 +16006,10 @@ mlfi_eom(SMFICTX *ctx)
 }
 
 /*
-**  MLFI_ABORT -- handler called if an earlier filter in the filter process
-**                rejects the message
-**
-**  Parameters:
-**  	ctx -- milter context
-**
-**  Return value:
-**  	An SMFIS_* constant.
-*/
-
-sfsistat
-mlfi_abort(SMFICTX *ctx)
-{
-	dkimf_cleanup(ctx);
-	return SMFIS_CONTINUE;
-}
-
-/*
 **  MLFI_CLOSE -- handler called on connection shutdown
 **
 **  Parameters:
-**  	ctx -- milter context
+**  	ctx -- libmilter context
 **
 **  Return value:
 **  	An SMFIS_* constant.
@@ -16549,26 +16018,32 @@ mlfi_abort(SMFICTX *ctx)
 sfsistat
 mlfi_close(SMFICTX *ctx)
 {
-	connctx cc;
+	struct connctx * cc;
+	struct msgctx * dfc;
+	struct dkimf_config * conf;
+	_Bool free_conf = FALSE;
 
-	dkimf_cleanup(ctx);
+	dkimf_cc_dfc_conf(ctx, cc, dfc, conf);
 
-	cc = (connctx) dkimf_getpriv(ctx);
-	if (cc != NULL)
+	/* The mlfi_close() may be called out-of-order. */
+	if (conf == NULL)
 	{
-		pthread_mutex_lock(&conf_lock);
-
-		cc->cctx_config->conf_refcnt--;
-
-		if (cc->cctx_config->conf_refcnt == 0 &&
-		    cc->cctx_config != curconf)
-			dkimf_config_free(cc->cctx_config);
-
-		pthread_mutex_unlock(&conf_lock);
-
-		free(cc);
-		dkimf_setpriv(ctx, NULL);
+		syslog(LOG_NOTICE, "mlfi_close() called out-of-order");
+		goto we_are_done_here;
 	}
+
+	pthread_mutex_lock(&conf_lock);
+
+	conf->conf_refcnt--;
+	/* If we're the last user of this config, mark it for deletion. */
+	if (conf->conf_refcnt == 0 && conf != curconf)
+		free_conf = TRUE;
+
+	pthread_mutex_unlock(&conf_lock);
+
+	/* Reset the libmilter-managed connection context. */
+	cc->cctx_config = NULL;
+	dkimf_cleanup(dfc);
 
 #ifdef QUERY_CACHE
 	if (querycache)
@@ -16584,7 +16059,7 @@ mlfi_close(SMFICTX *ctx)
 			u_int c_pct;
 			u_int c_keys;
 
-			dkim_getcachestats(cc->cctx_config->conf_libopendkim,
+			dkim_getcachestats(conf->conf_libopendkim,
 			                   &c_queries, &c_hits, &c_expired,
 			                   &c_keys, FALSE);
 
@@ -16605,41 +16080,57 @@ mlfi_close(SMFICTX *ctx)
 	}
 #endif /* QUERY_CACHE */
 
+	if (free_conf)
+		dkimf_config_free(conf);
+
+we_are_done_here:
+
 	return SMFIS_CONTINUE;
 }
 
 /*
-**  smfilter -- the milter module description
+**  smfilter -- the libmilter module description
 */
+
+struct connctx_align {
+	unsigned char	_;
+	struct connctx	ctx;
+};
+
+static const size_t cpd_align = offsetof(struct connctx_align, ctx);
+static const size_t cpd_size  = sizeof(struct connctx);
+
+SMFISML sml[] = {
+	{ SMFIM_EOH, NULL },
+	{         0, NULL }
+};
 
 struct smfiDesc smfilter =
 {
 	DKIMF_PRODUCT,	/* filter name */
 	SMFI_VERSION,	/* version code -- do not change */
-	0,		/* flags; updated in main() */
+	0, 0,		/* flags; updated in main() */
+	NULL,		/* lists of macros to receive; updated in main() */
+	SIGINT,		/* signal to make the filter stop */
+	SIGTERM,	/* signal to make the filter abort */
+	0,		/* maximum command data transfer size (use default) */
+	7210,		/* MTA-filter communication timeout */
+	0,		/* libmilter debug (tracing) level; updated in main() */
+	cpd_align,	/* connection-private data allocation */
+	cpd_size,
 	mlfi_connect,	/* connection info filter */
-#if SMFI_VERSION == 2
-	mlfi_helo,	/* SMTP HELO command filter */
-#else /* SMFI_VERSION == 2 */
 	NULL,		/* SMTP HELO command filter */
-#endif /* SMFI_VERSION == 2 */
 	mlfi_envfrom,	/* envelope sender filter */
 	mlfi_envrcpt,	/* envelope recipient filter */
 	mlfi_header,	/* header filter */
 	mlfi_eoh,	/* end of header */
-	mlfi_body,	/* body block filter */
+	mlfi_body,	/* body block */
 	mlfi_eom,	/* end of message */
-	mlfi_abort,	/* message aborted */
-	mlfi_close,	/* shutdown */
-#if SMFI_VERSION > 2
-	NULL,		/* unrecognised command */
-#endif
-#if SMFI_VERSION > 3
-	NULL,		/* DATA */
-#endif
-#if SMFI_VERSION >= 0x01000000
-	mlfi_negotiate	/* negotiation callback */
-#endif
+	NULL,		/* message aborted */
+	mlfi_close,	/* connection cleanup */
+	NULL,		/* unrecognized or unimplemented command filter */
+	NULL,		/* SMTP DATA command filter */
+	NULL		/* negotiation callback */
 };
 
 /*
@@ -16655,7 +16146,7 @@ struct smfiDesc smfilter =
 static int
 usage(void)
 {
-	fprintf(stderr, "%s: usage: %s -p socketfile [options]\n"
+	fprintf(stderr, "%s: usage: %s [options]\n"
 #if defined(STANDALONE)
 	                "\t-A          \tauto-restart\n"
 #endif /* STANDALONE */
@@ -16679,10 +16170,10 @@ usage(void)
 	                "\t-L limit    \tsignature limit requirements\n"
 	                "\t-n          \tcheck configuration and exit\n"
 			"\t-o hdrlist  \tlist of headers to omit from signing\n"
+			"\t-p mlsname  \tMilter listening socket name\n"
 #if defined(STANDALONE)
 			"\t-P pidfile  \tfile into which to write process ID\n"
 #endif /* STANDALONE */
-	                "\t-q          \tquarantine messages that fail to verify\n"
 #if defined(PRODUCTION_TESTS)
 		        "\t-Q          \tquery test mode\n"
 #endif /* PRODUCTION_TESTS */
@@ -16715,7 +16206,7 @@ usage(void)
 /*
 **  MAIN -- program mainline
 **
-**  Process command line arguments and call the milter mainline.
+**  Process command line arguments and call the libmilter mainline.
 */
 
 int
@@ -16724,7 +16215,6 @@ main(int argc, char **argv)
 #if defined(STANDALONE)
 	_Bool autorestart = FALSE;
 #endif /* STANDALONE */
-	_Bool gotp = FALSE;
 #if defined(STANDALONE)
 	_Bool dofork = TRUE;
 #endif /* STANDALONE */
@@ -16749,11 +16239,10 @@ main(int argc, char **argv)
 #if defined(PRODUCTION_TESTS)
 	int mdebug = 0;
 #endif /* PRODUCTION_TESTS */
-#ifdef HAVE_SMFI_VERSION
 	u_int mvmajor;
 	u_int mvminor;
 	u_int mvrelease;
-#endif /* HAVE_SMFI_VERSION */
+	u_int mc;
 	time_t now;
 #if defined(STANDALONE)
 	gid_t gid = (gid_t) -1;
@@ -16787,6 +16276,9 @@ main(int argc, char **argv)
 	char *testfile = NULL;
 	char *testpubkeys = NULL;
 #endif /* PRODUCTION_TESTS */
+	char *mlsname = NULL;
+	int mlsfd = -1;
+	int mlsbacklog = -1;
 	struct config *cfg = NULL;
 	char *end;
 	char argstr[MAXARGV];
@@ -16800,7 +16292,6 @@ main(int argc, char **argv)
 #ifdef QUERY_CACHE
 	querycache = FALSE;
 #endif /* QUERY_CACHE */
-	sock = NULL;
 #ifdef POPAUTH
 	popdb = NULL;
 #endif /* POPAUTH */
@@ -16935,9 +16426,7 @@ main(int argc, char **argv)
 		  case 'p':
 			if (optarg == NULL || *optarg == '\0')
 				return usage();
-			sock = optarg;
-			(void) smfi_setconn(optarg);
-			gotp = TRUE;
+			mlsname = optarg;
 			break;
 
 #if defined(STANDALONE)
@@ -17043,12 +16532,12 @@ main(int argc, char **argv)
 			printf("\tCompiled with %s\n",
 			       SSLeay_version(SSLEAY_VERSION));
 #endif /* USE_GNUTLS */
-			printf("\tSMFI_VERSION 0x%x\n", SMFI_VERSION);
-#ifdef HAVE_SMFI_VERSION
-			(void) smfi_version(&mvmajor, &mvminor, &mvrelease);
+			printf("\tSMFI_VERSION 0x%08x\n", SMFI_VERSION);
+			printf("\tSMFI_CONFIGURATION 0x%08x\n", SMFI_CONFIGURATION);
+			smfi_version(&mvmajor, &mvminor, &mvrelease, &mc);
 			printf("\tlibmilter version %d.%d.%d\n",
 			       mvmajor, mvminor, mvrelease);
-#endif /* HAVE_SMFI_VERSION */
+			printf("\tlibmilter configuration %08xh\n", mc);
 			printf("\tSupported signing algorithms:\n");
 			for (c = 0; dkim_sign_alg[c].tbl_name != NULL; c++)
 			{
@@ -17549,15 +17038,15 @@ main(int argc, char **argv)
 		(void) config_get(cfg, "MilterDebug", &mdebug, sizeof mdebug);
 #endif /* PRODUCTION_TESTS */
 
-		if (!gotp)
+		if (mlsname == NULL)
 		{
-			(void) config_get(cfg, "Socket", &sock, sizeof sock);
-			if (sock != NULL)
-			{
-				gotp = TRUE;
-				(void) smfi_setconn(sock);
-			}
+			(void) config_get(cfg, "Socket", &mlsname, sizeof mlsname);
 		}
+
+		(void) config_get(cfg, "SocketBacklog", &mlsbacklog,
+		                                        sizeof mlsbacklog);
+		if (mlsbacklog <= 0)
+			mlsbacklog = 10;
 
 #if defined(STANDALONE)
 		if (pidfile == NULL)
@@ -17596,22 +17085,13 @@ main(int argc, char **argv)
 #endif /* STANDALONE */
 	}
 
-#ifndef SMFIF_QUARANTINE
-	if (quarantine)
-	{
-		fprintf(stderr, "%s: quarantine service not available\n",
-		        progname);
-		return EX_SOFTWARE;
-	}
-#endif /* ! SMFIF_QUARANTINE */
-
 #if defined(PRODUCTION_TESTS)
-	if (!gotp && !testmode)
+	if ((mlsname == NULL || mlsname[0] == '\0') && !testmode)
 #else /* PRODUCTION_TESTS */
-	if (!gotp)
+	if (mlsname == NULL || mlsname[0] == '\0')
 #endif /* !PRODUCTION_TESTS */
 	{
-		fprintf(stderr, "%s: milter socket must be specified\n",
+		fprintf(stderr, "%s: A socket name must be specified\n",
 		        progname);
 		if (argc == 1)
 			fprintf(stderr, "\t(use \"-?\" for help)\n");
@@ -17872,14 +17352,12 @@ main(int argc, char **argv)
 		sa.sa_handler = dkimf_sighandler;
 		/* XXX -- HAHAHAH => sa.sa_sigaction = NULL; */
 		sigemptyset(&sa.sa_mask);
-		sigaddset(&sa.sa_mask, SIGHUP);
 		sigaddset(&sa.sa_mask, SIGINT);
 		sigaddset(&sa.sa_mask, SIGTERM);
 		sigaddset(&sa.sa_mask, SIGUSR1);
 		sa.sa_flags = 0;
 
-		if (sigaction(SIGHUP, &sa, NULL) != 0 ||
-		    sigaction(SIGINT, &sa, NULL) != 0 ||
+		if (sigaction(SIGINT, &sa, NULL) != 0 ||
 		    sigaction(SIGTERM, &sa, NULL) != 0 ||
 		    sigaction(SIGUSR1, &sa, NULL) != 0)
 		{
@@ -17925,18 +17403,6 @@ main(int argc, char **argv)
 
 		while (!quitloop)
 		{
-			status = dkimf_socket_cleanup(sock);
-			if (status != 0)
-			{
-				if (curconf->conf_dolog)
-				{
-					syslog(LOG_ERR,
-					       "[parent] socket cleanup failed: %s",
-					       strerror(status));
-				}
-				return EX_UNAVAILABLE;
-			}
-
 			pid = fork();
 			switch (pid)
 			{
@@ -17953,8 +17419,7 @@ main(int argc, char **argv)
 			  case 0:
 				sa.sa_handler = SIG_DFL;
 
-				if (sigaction(SIGHUP, &sa, NULL) != 0 ||
-				    sigaction(SIGINT, &sa, NULL) != 0 ||
+				if (sigaction(SIGINT, &sa, NULL) != 0 ||
 				    sigaction(SIGTERM, &sa, NULL) != 0)
 				{
 					if (curconf->conf_dolog)
@@ -18125,13 +17590,12 @@ main(int argc, char **argv)
 #endif /* STANDALONE */
 
 	/*
-	**  Block SIGUSR1 for use of our reload thread, and SIGHUP, SIGINT
+	**  Block SIGUSR1 for use of our reload thread, and SIGINT
 	**  and SIGTERM for use of libmilter's signal handling thread.
 	*/
 
 	sigemptyset(&sigset);
 	sigaddset(&sigset, SIGUSR1);
-	sigaddset(&sigset, SIGHUP);
 	sigaddset(&sigset, SIGTERM);
 	sigaddset(&sigset, SIGINT);
 	status = pthread_sigmask(SIG_BLOCK, &sigset, NULL);
@@ -18188,7 +17652,7 @@ main(int argc, char **argv)
 	{
 		if (curconf->conf_dolog)
 			syslog(LOG_ERR, "can't configure DKIM library: %s", p);
-			fprintf(stderr, "%s: can't configure DKIM library: %s", progname, p);
+		fprintf(stderr, "%s: can't configure DKIM library: %s", progname, p);
 		return EX_SOFTWARE;
 	}
 
@@ -18196,54 +17660,24 @@ main(int argc, char **argv)
 		(void) umask((mode_t) filemask);
 
 #if defined(PRODUCTION_TESTS)
-	if (mdebug > 0)
-		(void) smfi_setdbg(mdebug);
-#endif /* PRODUCTION_TESTS */
-
-#if defined(PRODUCTION_TESTS)
 	if (!testmode)
 #endif /* PRODUCTION_TESTS */
 	{
-		/* try to clean up the socket */
-		status = dkimf_socket_cleanup(sock);
-		if (status != 0)
-		{
-			if (curconf->conf_dolog)
-			{
-				syslog(LOG_ERR, "socket cleanup failed: %s",
-				       strerror(status));
-			}
+		char macrolist[BUFRSZ];
 
-			fprintf(stderr, "%s: socket cleanup failed: %s\n",
-			        progname, strerror(status));
-
-			dkimf_zapkey(curconf);
-
-#if defined(STANDALONE)
-			if (!autorestart && pidfile != NULL)
-				(void) unlink(pidfile);
-#endif /* STANDALONE */
-
-			return EX_UNAVAILABLE;
-		}
-
-		smfilter.xxfi_flags = SMFIF_ADDHDRS;
+		smfilter.xxfi_aflags = SMFIF_ADDHDRS;
 
 #if defined(REDIRECT_FAILURES) || defined(USE_LUA)
 #if defined(REDIRECT_FAILURES)
 		if (curconf->conf_redirect != NULL)
 		{
 #endif /* REDIRECT_FAILURES */
-			smfilter.xxfi_flags |= SMFIF_ADDRCPT;
-			smfilter.xxfi_flags |= SMFIF_DELRCPT;
+			smfilter.xxfi_aflags |= SMFIF_ADDRCPT;
+			smfilter.xxfi_aflags |= SMFIF_DELRCPT;
 #if defined(REDIRECT_FAILURES)
 		}
 #endif /* REDIRECT_FAILURES */
 #endif /* REDIRECT_FAILURES || USE_LUA */
-
-#if defined(SMFIF_SETSYMLIST) && defined(HAVE_SMFI_SETSYMLIST)
-		smfilter.xxfi_flags |= SMFIF_SETSYMLIST;
-#endif /* SMFIF_SETSYMLIST && HAVE_SMFI_SETSYMLIST */
 
 		if (curconf->conf_remarall ||
 		    !curconf->conf_keepar ||
@@ -18254,14 +17688,51 @@ main(int argc, char **argv)
 		    curconf->conf_vbr_purge ||
 #endif /* _FFR_VBR */
 		    curconf->conf_remsigs)
-			smfilter.xxfi_flags |= SMFIF_CHGHDRS;
-#ifdef SMFIF_QUARANTINE
+			smfilter.xxfi_aflags |= SMFIF_CHGHDRS;
 		if (curconf->conf_capture)
-			smfilter.xxfi_flags |= SMFIF_QUARANTINE;
-#endif /* SMFIF_QUARANTINE */
+			smfilter.xxfi_aflags |= SMFIF_QUARANTINE;
 
-		/* register with the milter interface */
-		if (smfi_register(smfilter) == MI_FAILURE)
+		smfilter.xxfi_pflags = ( SMFIP_SKIP | SMFIP_HDR_LEADSPC );
+
+		CLEAR(macrolist);
+		strlcpy(macrolist, DKIMF_EOHMACROS, sizeof macrolist);
+
+#if defined(LOCAL_SIGNING_CRITERIA)
+		if (curconf->conf_macros != NULL)
+		{
+			int c;
+
+			for (c = 0; curconf->conf_macros[c] != NULL; c++)
+			{
+				if (macrolist[0] != '\0')
+					strlcat(macrolist, " ", sizeof macrolist);
+
+				if (strlcat(macrolist, curconf->conf_macros[c],
+				            sizeof macrolist) >= sizeof macrolist)
+				{
+					if (curconf->conf_dolog)
+						syslog(LOG_ERR,
+						       "macro list overflow");
+
+					fprintf(stderr,
+					        "%s: macro list overflow\n",
+					        progname);
+
+					return EX_CONFIG;
+				}
+			}
+		}
+#endif /* LOCAL_SIGNING_CRITERIA */
+
+		sml[0].macros = macrolist;
+		smfilter.xxfi_maclist = sml;
+
+#if defined(PRODUCTION_TESTS)
+		smfilter.xxfi_dbg = mdebug;
+#endif /* PRODUCTION_TESTS */
+
+		/* Register with the Milter library. */
+		if (smfi_register(&smfilter) == MI_FAILURE)
 		{
 			if (curconf->conf_dolog)
 				syslog(LOG_ERR, "smfi_register() failed");
@@ -18279,21 +17750,28 @@ main(int argc, char **argv)
 			return EX_UNAVAILABLE;
 		}
 
-#ifdef HAVE_SMFI_OPENSOCKET
-		/* try to establish the milter socket */
-		if (smfi_opensocket(FALSE) == MI_FAILURE)
+		/* Try to establish the Milter listening socket. */
+		status = dkimf_unix_socket(mlsname, mlsbacklog, &mlsfd);
+		if (status != 0)
 		{
 			if (curconf->conf_dolog)
-				syslog(LOG_ERR, "smfi_opensocket() failed");
+			{
+				syslog(LOG_ERR, "socket open failed: %s",
+				       strerror(status));
+			}
 
-			fprintf(stderr, "%s: smfi_opensocket() failed\n",
-			        progname);
+			fprintf(stderr, "%s: socket open failed: %s\n",
+			        progname, strerror(status));
 
 			dkimf_zapkey(curconf);
 
+#if defined(STANDALONE)
+			if (!autorestart && pidfile != NULL)
+				(void) unlink(pidfile);
+#endif /* STANDALONE */
+
 			return EX_UNAVAILABLE;
 		}
-#endif /* HAVE_SMFI_OPENSOCKET */
 	}
 
 	/* initialize libcrypto mutexes */
@@ -18336,6 +17814,9 @@ main(int argc, char **argv)
 				(void) unlink(pidfile);
 #endif /* STANDALONE */
 
+			unlink(mlsname);
+			close(mlsfd);
+
 			return EX_CONFIG;
 		}
 	}
@@ -18362,6 +17843,8 @@ main(int argc, char **argv)
 		status = dkimf_testfiles(curconf->conf_libopendkim, testfile,
 		                         fixedtime, stricttest, verbose);
 		dkim_close(curconf->conf_libopendkim);
+		unlink(mlsname);
+		close(mlsfd);
 		return status;
 	}
 #endif /* PRODUCTION_TESTS */
@@ -18423,6 +17906,9 @@ main(int argc, char **argv)
 				(void) unlink(pidfile);
 #endif /* STANDALONE */
 
+			unlink(mlsname);
+			close(mlsfd);
+
 			return EX_UNAVAILABLE;
 		}
 	}
@@ -18458,12 +17944,15 @@ main(int argc, char **argv)
 			(void) unlink(pidfile);
 #endif /* STANDALONE */
 
+		unlink(mlsname);
+		close(mlsfd);
+
 		return EX_OSERR;
 	}
 
-	/* call the milter mainline */
+	/* Call the libmilter mainline. */
 	errno = 0;
-	status = smfi_main();
+	status = smfi_main(mlsfd, PF_UNIX);
 
 	if (curconf->conf_dolog)
 	{
@@ -18471,6 +17960,10 @@ main(int argc, char **argv)
 		       "%s v%s terminating with status %d, errno = %d",
 		       DKIMF_PRODUCT, VERSION, status, errno);
 	}
+
+	/* Close the socket AFTER logging to avoid clobbering errno. */
+	unlink(mlsname);
+	close(mlsfd);
 
 #ifdef POPAUTH
 	if (popdb != NULL)

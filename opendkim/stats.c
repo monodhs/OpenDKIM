@@ -91,7 +91,7 @@ dkimf_stats_init(void)
 */
 
 int
-dkimf_stats_record(char *path, u_char *jobid, char *name, char *prefix,
+dkimf_stats_record(char *path, const char *jobid, char *name, char *prefix,
                    Header hdrlist, DKIM *dkimv,
 #ifdef _FFR_STATSEXT
                    struct statsext *se,

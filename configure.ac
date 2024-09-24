@@ -241,7 +241,7 @@ AC_SUBST([LIBRESOLV])
 #
 # Checks for header files
 #
-AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h iso/limits_iso.h netdb.h netinet/in.h paths.h stdlib.h string.h sys/file.h sys/param.h sys/socket.h sys/time.h syslog.h unistd.h stdint.h])
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h iso/limits_iso.h netdb.h netinet/in.h paths.h stddef.h stdlib.h string.h sys/file.h sys/param.h sys/socket.h sys/time.h syslog.h unistd.h stdint.h])
 
 #
 # Checks for typedefs, structures, and compiler characteristics.
@@ -1311,26 +1311,6 @@ then
 		               	breakloop="yes"
 		               ])
 
-		AC_CHECK_FUNC([smfi_insheader],
-			      AC_DEFINE([HAVE_SMFI_INSHEADER], 1,
-					[Define if libmilter has smfi_insheader()]))
-
-		AC_CHECK_FUNC([smfi_opensocket],
-			      AC_DEFINE([HAVE_SMFI_OPENSOCKET], 1,
-					[Define if libmilter has smfi_opensocket()]))
-
-		AC_CHECK_FUNC([smfi_progress],
-			      AC_DEFINE([HAVE_SMFI_PROGRESS], 1,
-					[Define if libmilter has smfi_progress()]))
-
-		AC_CHECK_FUNC([smfi_setsymlist],
-			      AC_DEFINE([HAVE_SMFI_SETSYMLIST], 1,
-					[Define if libmilter has smfi_setsymlist()]))
-
-		AC_CHECK_FUNC([smfi_version],
-			      AC_DEFINE([HAVE_SMFI_VERSION], 1,
-					[Define if libmilter has smfi_version()]))
-
 		if test x"$breakloop" = x"yes"
 		then
 			break
@@ -1347,6 +1327,29 @@ then
 	LDFLAGS="$saved_LDFLAGS"
 	LIBS="$saved_LIBS"
 fi
+
+#
+# libmilter version and configuration
+#
+saved_CPPFLAGS="$CPPFLAGS"
+CPPFLAGS="$outer_CPPFLAGS $LIBMILTER_INCDIRS"
+AC_MSG_CHECKING([whether libmilter version and configuration are suitable])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([
+#include "libmilter/mfapi.h"
+
+#if !defined(SMFI_VERSION) || SM_LM_VRS_MAJOR(SMFI_VERSION) < 16
+# error libmilter version 16.0.0 or higher is required
+#endif
+
+#if ( (SMFI_CONFIGURATION & SMFI_CONF_ASSUMEV6) == 0 )
+# error libmilter shall assume that Milter protocol version 6 is spoken
+#endif
+
+int main () { return 0; }
+	])],
+	AC_MSG_RESULT([yes]), 
+	AC_MSG_ERROR([no]))
+CPPFLAGS="$saved_CPPFLAGS"
 
 AC_SUBST(LIBMILTER_INCDIRS)
 AC_SUBST(LIBMILTER_LIBDIRS)

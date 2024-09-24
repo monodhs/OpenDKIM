@@ -28,7 +28,7 @@ include(MANPAGE_MACROS)dnl
 [\-L min]
 [\-n]
 [\-o hdrlist]
-[\-p socketspec]
+[\-p mlsname]
 @STANDALONE_MANIF@
 [\-P pidfile]
 @STANDALONE_MANENDIF@
@@ -67,11 +67,9 @@ standard for signing and verifying e-mail messages on a per-domain basis.
 
 .B opendkim
 uses the
-.I milter
-interface, originally distributed as part of version 8.11 of
-.B sendmail(8),
-to provide DKIM signing and/or verifying service for mail transiting
-a milter-aware MTA.
+.I Milter
+library to provide DKIM signing and/or verifying service for mail transiting
+a Milter-aware MTA.
 
 Most, if not all, of the command line options listed below can also be set
 using a configuration file.  See the
@@ -258,10 +256,9 @@ pairs as described above.
 .I \-A
 Automatically re-start on failures.  Use with caution; if the filter
 fails instantly after it starts, this can cause a tight
-.I fork(2)
+\fBfork\fR(2)
 loop.  This can be mitigated using some values in the configuration file
-to limit restarting.  See
-.I opendkim.conf(5).
+to limit restarting.  See \fBopendkim.conf\fR(5).
 @STANDALONE_MANENDIF@
 .TP
 .I \-b modes
@@ -285,7 +282,7 @@ below) in which case the default is
 .TP
 .I \-c canon
 Selects the canonicalization method(s) to be used when signing messages.
-When verifying, the message's DKIM-Signature: header specifies
+When verifying, the message's \fIDKIM-Signature:\fR header specifies
 the canonicalization method.  The recognized values are
 .I relaxed
 and
@@ -342,8 +339,7 @@ a KeyTable.
 @SINGLE_SIGNING_MANENDIF@
 .TP
 .I \-l
-Log via calls to
-.I syslog(3)
+Log via calls to \fBsyslog\fR(3)
 any interesting activity.
 .TP
 .I \-L min[%+]
@@ -380,30 +376,10 @@ contains those headers (Return-Path, Received, Comments, Keywords, Bcc,
 Resent-Bcc and DKIM-Signature).  To omit no headers, simply use the string
 "-" (or any string that will match no headers).
 .TP
-.I \-p socketspec
-Specifies the socket that should be established by the filter to receive
-connections from
-.I sendmail(8)
-in order to provide service.
-.I socketspec
-is in one of two forms:
-.I local:path
-which creates a UNIX domain socket at the specified
-.I path,
-or
-.I inet:port[@host]
-or
-.I inet6:port[@host]
-which creates a TCP socket on the specified
-.I port
-using the requested protocol family.  If the
-.I host
-is not given as either a hostname or an IP address, the socket will be
-listening on all interfaces.  A literal IP address must be enclosed in
-square brackets.  If neither socket type is specified,
-.I local
-is assumed, meaning the parameter is interpreted as a path at which
-the socket should be created.  This parameter is mandatory either here or
+.I \-p mlsname
+Specifies the path for the UNIX domain socket that should be established
+by the filter to receive connections from Milter clients in order to provide
+service.  This parameter is mandatory either on the command line or
 in the configuration file.
 @STANDALONE_MANIF@
 .TP
@@ -496,8 +472,7 @@ for each message, so it should be limited to debugging use and not enabled
 for general operation.
 .TP
 .I \-x configfile
-Read the named configuration file.  See the
-.I opendkim.conf(5)
+Read the named configuration file.  See the \fBopendkim.conf\fR(5)
 man page for details.  Values in the configuration file are overridden
 when their equivalents are provided on the command line until a configuration
 reload occurs.  The OPERATION section describes how reloads are triggered.
@@ -606,8 +581,7 @@ parameters.
 parameter.
 @DEFAULT_SENDER_MANENDIF@
 @SENDER_MACRO_MANENDIF@
-See
-.I opendkim.conf(5)
+See \fBopendkim.conf\fR(5)
 for more information.
 
 @RESIGN_MANIF@
@@ -626,8 +600,7 @@ configuration parameter.
 When signing a message, a
 .I DKIM-Signature:
 header will be prepended to the message.  The signature is computed using
-the private key provided.  You must be running a version of
-.I sendmail(8)
+the private key provided.  You must be running a version of \fBsendmail\fR(8)
 recent enough to be able to do header prepend operations (8.13.0 or later).
 
 When verifying a message, an
@@ -647,7 +620,7 @@ header will be prepended to the message, the former being covered by the
 latter's signature.
 
 @RESIGN_MANENDIF@
-Upon receiving SIGUSR1, if the filter was started with a configuration
+Upon receiving \fBSIGUSR1\fR, if the filter was started with a configuration
 file, it will be re-read and the new values used.  Note that any
 command line overrides provided at startup time will be lost when this is
 done.  Also, the following configuration file values (and their corresponding
@@ -658,6 +631,9 @@ AutoRestartCount,
 AutoRestartRate,
 Background,
 @STANDALONE_MANENDIF@
+@LOCAL_SIGNING_CRITERIA_MANIF@
+MacroList,
+@LOCAL_SIGNING_CRITERIA_MANENDIF@
 @PRODUCTION_TESTS_MANIF@
 MilterDebug,
 @PRODUCTION_TESTS_MANENDIF@
@@ -667,8 +643,9 @@ PidFile (\-P),
 @POPAUTH_MANIF@
 POPDBFile,
 @POPAUTH_MANENDIF@
-Quarantine (\-q),
+@QUERY_CACHE_MANIF@
 QueryCache,
+@QUERY_CACHE_MANENDIF@
 Socket (\-p),
 @PRODUCTION_TESTS_MANIF@
 StrictTestMode,
@@ -754,8 +731,7 @@ The directory to use when creating temporary files.  The default is
 When using DNS timeouts (see the
 .I \-T
 option above), be sure not to use a timeout that is larger than the timeout
-being used for interaction between
-.I sendmail
+being used for interaction between \fBsendmail\fR(8)
 and the filter.  Otherwise, the MTA could abort a message while waiting for
 a reply from the filter, which in turn is still waiting for a DNS reply.
 
@@ -769,14 +745,12 @@ database should keep their lock use to a minimum or else this filter
 will appear to hang while waiting for the lock operation to complete.
 
 Features that involve specification of IPv4 addresses or CIDR blocks
-will use the
-.I inet_addr(3)
+will use the \fBinet_addr\fR(3)
 function to parse that information.  Users should be familiar with the
 way that function handles the non-trivial cases (for example, "192.0.2/24"
 and "192.0.2.0/24" are not the same thing).
 .SH EXIT STATUS
-Filter exit status codes are selected according to
-.I sysexits(3).
+Filter exit status codes are selected according to \fBsysexits\fR(3).
 .SH HISTORY
 DKIM is an amalgam of Yahoo!'s
 .B DomainKeys
@@ -784,8 +758,7 @@ proposal, and Cisco's
 .B Internet Identified Mail
 (IIM) proposal.
 .SH VERSION
-This man page covers version @VERSION@ of
-.I opendkim.
+This man page covers version @VERSION@ of \fBopendkim\fR.
 .SH COPYRIGHT
 Copyright (c) 2005-2008, Sendmail, Inc. and its suppliers.  All rights
 reserved.
@@ -793,7 +766,7 @@ reserved.
 Copyright (c) 2009-2013, 2015, The Trusted Domain Project.
 All rights reserved.
 .SH SEE ALSO
-.I opendkim.conf(5), sendmail(8)
+\fBopendkim.conf\fR(5), \fBsendmail\fR(8)
 .P
 Sendmail Operations Guide
 .P

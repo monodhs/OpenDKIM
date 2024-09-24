@@ -287,6 +287,7 @@ struct configdef dkimf_config[] =
 #endif /* HAVE_CURL_EASY_STRERROR */
 #endif /* DEBUG_FEATURES */
 	{ "Socket",			CONFIG_TYPE_STRING,	FALSE },
+	{ "SocketBacklog",		CONFIG_TYPE_INTEGER,	FALSE },
 	{ "SoftwareHeader",		CONFIG_TYPE_BOOLEAN,	FALSE },
 #if defined(USE_ODBX) || defined(USE_LDAP)
 	{ "SoftStart",			CONFIG_TYPE_BOOLEAN,	FALSE },

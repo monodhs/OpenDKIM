@@ -44,7 +44,7 @@
 
 /* PROTOTYPES */
 extern void dkimf_stats_init __P((void));
-extern int dkimf_stats_record __P((char *, u_char *, char *, char *, Header,
+extern int dkimf_stats_record __P((char *, const char *, char *, char *, Header,
                                    DKIM *,
 #ifdef _FFR_STATSEXT
                                    struct statsext *,

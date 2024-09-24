@@ -66,7 +66,7 @@ extern void dkimf_mkpath __P((char *, size_t, char *, char *));
 extern _Bool dkimf_mkregexp __P((char *, char *, size_t));
 extern void dkimf_optlist __P((FILE *));
 extern void dkimf_setmaxfd __P((void));
-extern int dkimf_socket_cleanup __P((char *));
+extern int dkimf_unix_socket __P((const char *, int, int *));
 extern void dkimf_stripbrackets __P((char *));
 extern void dkimf_stripcr __P((char *));
 extern _Bool dkimf_subdomain __P((char *d1, char *d2));

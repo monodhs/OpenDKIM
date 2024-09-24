@@ -1567,96 +1567,53 @@ dkimf_dstring_printf(struct dkimf_dstring *dstr, char *fmt, ...)
 }
 
 /*
-**  DKIMF_SOCKET_CLEANUP -- try to clean up the socket
+**  DKIMF_UNIX_SOCKET -- try to open the Milter listening socket
 **
 **  Parameters:
-**  	sockspec -- socket specification
+**  	path -- socket name
+**	backlog -- maximum queue length of pending connections
+**	lfd -- (pointer to) file descriptor destination
 **
 **  Return value:
-**  	0 -- nothing to cleanup or cleanup successful
+**  	0 -- socket open successful
 **  	other -- an error code (a la errno)
 */
 
 int
-dkimf_socket_cleanup(char *sockspec)
+dkimf_unix_socket(const char * path, int backlog, int * lfd)
 {
-	int s;
-	char *colon;
-	struct sockaddr_un sock;
-
-	assert(sockspec != NULL);
-
-	/* we only care about "local" or "unix" sockets */
-	colon = strchr(sockspec, ':');
-	if (colon != NULL)
-	{
-		if (strncasecmp(sockspec, "local:", 6) != 0 &&
-		    strncasecmp(sockspec, "unix:", 5) != 0)
-			return 0;
-	}
-
-	/* find the filename */
-	if (colon == NULL)
-	{
-		colon = sockspec;
-	}
-	else
-	{
-		if (*(colon + 1) == '\0')
-			return EINVAL;
-	}
+	int s, rv;
+	struct sockaddr_un sun;
 
 	/* get a socket */
 	s = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (s == -1)
 		return errno;
 
-	/* set up a connection */
-	memset(&sock, '\0', sizeof sock);
+	memset(&sun, '\0', sizeof sun);
 #ifdef BSD
-	sock.sun_len = sizeof sock;
+	sun.sun_len = sizeof sun;
 #endif /* BSD */
-	sock.sun_family = PF_UNIX;
-	strlcpy(sock.sun_path, colon + 1, sizeof sock.sun_path);
+	sun.sun_family = PF_UNIX;
+	strlcpy(sun.sun_path, path, sizeof sun.sun_path);
 
-	/* try to connect */
-	if (connect(s, (struct sockaddr *) &sock, (socklen_t) sizeof sock) != 0)
+	if (bind(s, (struct sockaddr *)&sun, (socklen_t) sizeof sun) != 0)
+		goto failed;
+
+	if (listen(s, backlog) == 0)
 	{
-		/* if ECONNREFUSED, try to unlink */
-		if (errno == ECONNREFUSED)
-		{
-			close(s);
-
-			if (unlink(sock.sun_path) == 0)
-				return 0;
-			else
-				return errno;
-		}
-
-		/* if ENOENT, the socket's not there */
-		else if (errno == ENOENT)
-		{
-			close(s);
-
-			return 0;
-		}
-
-		/* something else happened */
-		else
-		{
-			int saveerr;
-
-			saveerr = errno;
-
-			close(s);
-
-			return saveerr;
-		}
+		*lfd = s;
+		return 0;
 	}
 
-	/* connection apparently succeeded */
+failed:
+
+	rv = errno;
+
+	unlink(path);
 	close(s);
-	return EADDRINUSE;
+
+	return rv;
 }
 
 /*
