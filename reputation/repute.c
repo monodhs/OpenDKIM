@@ -581,7 +581,8 @@ repute_init(void)
 */
 
 REPUTE
-repute_new(const char *server, unsigned int reporter)
+repute_new(const char *server, unsigned int reporter,
+           const pthread_mutexattr_t * mutex_attrs)
 {
 	struct repute_handle *new;
 	curl_version_info_data *vinfo;
@@ -606,7 +607,7 @@ repute_new(const char *server, unsigned int reporter)
 	if (vinfo != NULL && vinfo->version != NULL)
 		new->rep_curlversion = strdup(vinfo->version);
 
-	pthread_mutex_init(&new->rep_lock, NULL);
+	pthread_mutex_init(&new->rep_lock, mutex_attrs);
 
 	return new;
 }

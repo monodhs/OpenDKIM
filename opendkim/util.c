@@ -71,7 +71,11 @@
 
 /* globals */
 #ifdef POPAUTH
+#if defined(MUTEX_INITIALIZERS)
+static pthread_mutex_t pop_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
+#else /* MUTEX_INITIALIZERS */
 static pthread_mutex_t pop_lock;
+#endif /* !MUTEX_INITIALIZERS */
 #endif /* POPAUTH */
 
 static const char * dsflist[] =
@@ -772,7 +776,11 @@ dkimf_checkip(DKIMF_DB db, struct sockaddr *ip)
 int
 dkimf_initpopauth(void)
 {
-	return pthread_mutex_init(&pop_lock, NULL);
+#if defined(MUTEX_INITIALIZERS)
+	return 0;
+#else /* MUTEX_INITIALIZERS */
+	return pthread_mutex_init(&pop_lock, mutex_attrs);
+#endif /* !MUTEX_INITIALIZERS */
 }
 
 /*

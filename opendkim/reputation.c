@@ -123,7 +123,7 @@ dkimf_rep_init(DKIMF_REP *rep, time_t factor, unsigned int minimum,
 	new->rep_lowtime = lowtime;
 	new->rep_minimum = minimum;
 
-	if (pthread_mutex_init(&new->rep_lock, NULL) != 0)
+	if (pthread_mutex_init(&new->rep_lock, mutex_attrs) != 0)
 	{
 		free(new);
 		return -1;

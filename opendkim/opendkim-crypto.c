@@ -132,7 +132,11 @@ dkimf_crypto_free(void)
 
 #else /* USE_GNUTLS */
 
+#if defined(MUTEX_INITIALIZERS)
+static pthread_mutex_t id_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
+#else /* MUTEX_INITIALIZERS */
 static pthread_mutex_t id_lock;
+#endif /* !MUTEX_INITIALIZERS */
 static pthread_key_t id_key;
 static unsigned int nmutexes = 0;
 static unsigned long threadid = 0L;
@@ -256,7 +260,7 @@ dkimf_crypto_dyn_create(/* UNUSED */ const char *file,
 	if (new == NULL)
 		return NULL;
 
-	err = pthread_mutex_init(new, NULL);
+	err = pthread_mutex_init(new, mutex_attrs);
 	if (err != 0)
 	{
 		free(new);
@@ -345,14 +349,16 @@ dkimf_crypto_init(void)
 
 	for (c = 0; c < n; c++)
 	{
-		status = pthread_mutex_init(&mutexes[c], NULL);
+		status = pthread_mutex_init(&mutexes[c], mutex_attrs);
 		if (status != 0)
 			return status;
 	}
 
-	status = pthread_mutex_init(&id_lock, NULL);
+#if !defined(MUTEX_INITIALIZERS)
+	status = pthread_mutex_init(&id_lock, mutex_attrs);
 	if (status != 0)
 		return status;
+#endif /* !MUTEX_INITIALIZERS */
 
 	nmutexes = n;
 

@@ -911,10 +911,14 @@ char reportcmd[BUFRSZ + 1];			/* reporting command */
 char reportaddr[MAXADDRESS + 1];		/* reporting address */
 #endif /* DEBUG_FEATURES */
 char myhostname[DKIM_MAXHOSTNAMELEN + 1];	/* hostname */
-pthread_mutex_t conf_lock;			/* config lock */
+pthread_mutex_t conf_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
+						/* config lock */
 #if defined(REQUIRE_SAFE_KEYS)
-pthread_mutex_t pwdb_lock;			/* passwd/group lock */
+pthread_mutex_t pwdb_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
+						/* passwd/group lock */
 #endif /* REQUIRE_SAFE_KEYS */
+static pthread_mutexattr_t pma;
+const pthread_mutexattr_t * const mutex_attrs = &pma;
 
 /* Other useful definitions */
 #define CRLF			"\r\n"		/* CRLF */
@@ -16803,6 +16807,9 @@ main(int argc, char **argv)
 	no_i_whine = TRUE;
 	conffile = NULL;
 
+	pthread_mutexattr_init(&pma);
+	pthread_mutexattr_settype(&pma, LOCAL_PTHREAD_MUTEX_TYPE);
+
 	memset(myhostname, '\0', sizeof myhostname);
 	(void) gethostname(myhostname, sizeof myhostname);
 
@@ -18347,11 +18354,6 @@ main(int argc, char **argv)
 		                    testpubkeys, strlen(testpubkeys));
 	}
 #endif /* PRODUCTION_TESTS && TAS_SUPPORT */
-
-	pthread_mutex_init(&conf_lock, NULL);
-#if defined(REQUIRE_SAFE_KEYS)
-	pthread_mutex_init(&pwdb_lock, NULL);
-#endif /* REQUIRE_SAFE_KEYS */
 
 #if defined(PRODUCTION_TESTS)
 	/* perform test mode */

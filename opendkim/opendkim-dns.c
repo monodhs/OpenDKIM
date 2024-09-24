@@ -91,6 +91,9 @@ struct dkimf_unbound_cb_data
 };
 #endif /* USE_UNBOUND */
 
+/* externs */
+extern const pthread_mutexattr_t * const mutex_attrs;
+
 /*
 **  DKIMF_DNS_TRUSTANCHOR -- advise the DKIM library of new trust anchor data
 **
@@ -610,8 +613,8 @@ dkimf_ub_init(void **ub)
 
 	out->ub_poller = FALSE;
 
-	pthread_mutex_init(&out->ub_lock, NULL);
-	pthread_mutex_init(&out->ub_config_lock, NULL);
+	pthread_mutex_init(&out->ub_lock, mutex_attrs);
+	pthread_mutex_init(&out->ub_config_lock, mutex_attrs);
 	pthread_cond_init(&out->ub_ready, NULL);
 
 	*ub = out;

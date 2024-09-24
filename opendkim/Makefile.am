@@ -31,7 +31,7 @@ opendkim_SOURCES += test.c test.h
 endif
 opendkim_CC = $(PTHREAD_CC)
 opendkim_CFLAGS = $(PTHREAD_CFLAGS) $(LIBCRYPTO_CFLAGS) $(COV_CFLAGS)
-opendkim_CPPFLAGS = -I$(srcdir)/../libopendkim -I$(builddir)/../libopendkim $(LIBCRYPTO_CPPFLAGS)
+opendkim_CPPFLAGS = -I$(srcdir)/../libopendkim -I$(builddir)/../libopendkim $(LIBCRYPTO_CPPFLAGS) $(LOCAL_PTHREAD_CPPFLAGS)
 opendkim_LDFLAGS = $(LIBCRYPTO_LIBDIRS) $(LIBMILTER_LIBDIRS) $(PTHREAD_CFLAGS) $(COV_LDFLAGS)
 opendkim_LDADD = ../libopendkim/libopendkim.la $(LIBMILTER_LIBS) $(LIBCRYPTO_LIBS) $(PTHREAD_LIBS) $(COV_LIBADD) $(LIBRESOLV)
 if USE_DB_OPENDKIM

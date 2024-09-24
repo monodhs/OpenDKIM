@@ -12,7 +12,7 @@ libopendkim_la_SOURCES = base32.c base64.c dkim-atps.c dkim-cache.c dkim-canon.c
 if TAS_SUPPORT
 libopendkim_la_SOURCES += dkim-test.c dkim-test.h
 endif
-libopendkim_la_CPPFLAGS = $(LIBCRYPTO_CPPFLAGS)
+libopendkim_la_CPPFLAGS = $(LIBCRYPTO_CPPFLAGS) $(LOCAL_PTHREAD_CPPFLAGS)
 libopendkim_la_CFLAGS = $(LIBCRYPTO_INCDIRS) $(LIBOPENDKIM_INC) $(COV_CFLAGS)
 libopendkim_la_LDFLAGS = -no-undefined  $(LIBCRYPTO_LIBDIRS) $(COV_LDFLAGS) -version-info $(LIBOPENDKIM_VERSION_INFO)
 libopendkim_la_LIBADD = $(LIBOPENDKIM_LIBS) $(LIBCRYPTO_LDADD) $(COV_LIBADD)

@@ -67,11 +67,13 @@ struct dkim_cache_entry
 };
 
 /* globals */
-static pthread_mutex_t cache_stats_lock; /* stats lock */
+static pthread_mutex_t cache_stats_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
+					/* stats lock */
 static u_int c_hits = 0;		/* cache hits */
 static u_int c_queries = 0;		/* cache queries */
 static u_int c_expired = 0;		/* expired cache hits */
-static pthread_mutex_t cache_lock;	/* cache lock */
+static pthread_mutex_t cache_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
+					/* cache lock */
 
 /*
 **  DKIM_CACHE_INIT -- initialize an on-disk cache of entries
@@ -93,9 +95,6 @@ dkim_cache_init(int *err, char *tmpdir)
 	c_hits = 0;
 	c_queries = 0;
 	c_expired = 0;
-
-	(void) pthread_mutex_init(&cache_stats_lock, NULL);
-	(void) pthread_mutex_init(&cache_lock, NULL);
 
 #if DB_VERSION_CHECK(3,0,0)
 	status = db_create(&cache, NULL, 0);

@@ -4617,7 +4617,7 @@ dkim_new(DKIM_LIB *libhandle, const unsigned char *id, void *memclosure,
 **  	None.
 */
 
-static pthread_mutex_t openssl_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t openssl_lock = LOCAL_PTHREAD_MUTEX_INITIALIZER;
 static unsigned openssl_refcount = 0;
 
 static void
